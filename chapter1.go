@@ -1,4 +1,4 @@
-package main
+package gocuro
 
 import (
 	"fmt"
@@ -54,7 +54,7 @@ func (netdev netDevice) netDevicePoll() error {
 	return nil
 }
 
-func main() {
+func Chapter1() {
 	var netDeviceList []netDevice
 
 	// ネットワークインターフェイスの情報を取得

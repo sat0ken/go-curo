@@ -1,3 +1,3 @@
-module main
+module gocuro
 
 go 1.19
