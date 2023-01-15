@@ -10,10 +10,11 @@ import (
 var IGNORE_INTERFACES = []string{"lo", "bond0", "dummy0", "tunl0", "sit0"}
 
 type netDevice struct {
-	name     string
-	macaddr  string
-	socket   int
-	sockaddr syscall.SockaddrLinklayer
+	name       string
+	macaddr    [6]uint8
+	socket     int
+	sockaddr   syscall.SockaddrLinklayer
+	etheHeader ethernetHeader
 }
 
 func isIgnoreInterfaces(name string) bool {
@@ -87,7 +88,7 @@ func Chapter1() {
 			// net_deviceの連結リストに連結させる
 			netDeviceList = append(netDeviceList, netDevice{
 				name:     netif.Name,
-				macaddr:  netif.HardwareAddr.String(),
+				macaddr:  setMacAddr(netif.HardwareAddr),
 				socket:   sock,
 				sockaddr: addr,
 			})
