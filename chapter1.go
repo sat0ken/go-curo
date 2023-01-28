@@ -41,7 +41,7 @@ func (netdev netDevice) netDeviceTransmit(data []byte) error {
 }
 
 // ネットデバイスの受信処理
-func (netdev netDevice) netDevicePoll() error {
+func (netdev netDevice) netDevicePoll(mode string) error {
 	recvbuffer := make([]byte, 1500)
 	n, _, err := syscall.Recvfrom(netdev.socket, recvbuffer, 0)
 	if err != nil {
@@ -51,7 +51,14 @@ func (netdev netDevice) netDevicePoll() error {
 			return fmt.Errorf("recv err, n is %d, device is %s, err is %s", n, netdev.name, err)
 		}
 	}
-	fmt.Printf("Received %d bytes from %s: %x\n", n, netdev.name, recvbuffer[:n])
+
+	// Chapter1では受信したパケットをprintするだけ
+	if mode == "chapter1" {
+		fmt.Printf("Received %d bytes from %s: %x\n", n, netdev.name, recvbuffer[:n])
+	} else {
+		netdev.ethernetInput(recvbuffer[:n])
+	}
+
 	return nil
 }
 
@@ -98,7 +105,7 @@ func runChapter1() {
 	for {
 		// デバイスから通信を受信
 		for _, netdev := range netDeviceList {
-			err := netdev.netDevicePoll()
+			err := netdev.netDevicePoll("chapter1")
 			if err != nil {
 				log.Fatal(err)
 			}
