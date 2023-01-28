@@ -1,4 +1,4 @@
-package gocuro
+package main
 
 import (
 	"fmt"
@@ -7,7 +7,7 @@ import (
 	"syscall"
 )
 
-func Chapter2() {
+func runChapter2() {
 	var netDeviceList []netDevice
 
 	// ネットワークインターフェイスの情報を取得
@@ -40,7 +40,7 @@ func Chapter2() {
 			// net_deviceの連結リストに連結させる
 			netDeviceList = append(netDeviceList, netDevice{
 				name:     netif.Name,
-				macaddr:  netif.HardwareAddr.String(),
+				macaddr:  setMacAddr(netif.HardwareAddr),
 				socket:   sock,
 				sockaddr: addr,
 			})

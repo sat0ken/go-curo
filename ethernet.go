@@ -1,4 +1,4 @@
-package gocuro
+package main
 
 import (
 	"encoding/binary"
