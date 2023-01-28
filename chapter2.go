@@ -50,7 +50,7 @@ func runChapter2() {
 	for {
 		// デバイスから通信を受信
 		for _, netdev := range netDeviceList {
-			err := netdev.netDevicePoll()
+			err := netdev.netDevicePoll("chapter2")
 			if err != nil {
 				log.Fatal(err)
 			}
