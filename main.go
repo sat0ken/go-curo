@@ -16,5 +16,4 @@ func main() {
 	} else if chapter2 {
 		runChapter2()
 	}
-
 }
