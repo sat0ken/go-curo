@@ -36,6 +36,11 @@ func runChapter2() {
 			if err != nil {
 				log.Fatalf("set non block is err : %s", err)
 			}
+			netaddrs, err := netif.Addrs()
+			if err != nil {
+				log.Fatalf("get ip addr from nic interface is err : %s", err)
+			}
+
 			// netDevice構造体を作成
 			// net_deviceの連結リストに連結させる
 			netDeviceList = append(netDeviceList, netDevice{
@@ -43,6 +48,7 @@ func runChapter2() {
 				macaddr:  setMacAddr(netif.HardwareAddr),
 				socket:   sock,
 				sockaddr: addr,
+				ipdev:    getIPdevice(netaddrs),
 			})
 		}
 	}
