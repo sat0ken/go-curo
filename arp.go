@@ -1,9 +1,13 @@
 package main
 
-import "fmt"
+import (
+	"bytes"
+	"fmt"
+)
 
 const ARP_OPERATION_CODE_REQUEST = 1
 const ARP_OPERATION_CODE_REPLY = 2
+const ARP_HTYPE_ETHERNET uint16 = 0001
 
 /**
  * ARPテーブル
@@ -27,6 +31,22 @@ type arpTableEntry struct {
 	macAddr [6]uint8
 	ipAddr  uint32
 	netdev  netDevice
+}
+
+func (arpmsg arpIPToEthernet) ToPacket() []byte {
+	var b bytes.Buffer
+
+	b.Write(uint16ToByte(arpmsg.hardwareType))
+	b.Write(uint16ToByte(arpmsg.protocolType))
+	b.Write([]byte{arpmsg.hardwareLen})
+	b.Write([]byte{arpmsg.protocolLen})
+	b.Write(uint16ToByte(arpmsg.opcode))
+	b.Write(macToByte(arpmsg.senderHardwareAddr))
+	b.Write(uint32ToByte(arpmsg.senderIPAddr))
+	b.Write(macToByte(arpmsg.targetHardwareAddrr))
+	b.Write(uint32ToByte(arpmsg.targetIPAddr))
+
+	return b.Bytes()
 }
 
 /*
@@ -120,8 +140,21 @@ https://github.com/kametan0730/interface_2022_11/blob/master/chapter2/arp.cpp#L1
 func arpRequestArrives(netdev netDevice, arp arpIPToEthernet) {
 	// IPアドレスが設定されているデバイスからの受信かつ要求されているアドレスが自分の物だったら
 	if netdev.ipdev.address != 00000000 && netdev.ipdev.address == arp.targetIPAddr {
-		fmt.Println("自分のARPリクエストだ")
-		// APRリプライを作成
+		fmt.Printf("Sending arp reply via %x\n", arp.targetIPAddr)
+		// APRリプライのパケットを作成
+		arpPacket := arpIPToEthernet{
+			hardwareType:        ARP_HTYPE_ETHERNET,
+			protocolType:        ETHER_TYPE_IP,
+			hardwareLen:         ETHERNET_ADDRES_LEN,
+			protocolLen:         IP_ADDRESS_LEN,
+			opcode:              ARP_OPERATION_CODE_REPLY,
+			senderHardwareAddr:  netdev.macaddr,
+			senderIPAddr:        netdev.ipdev.address,
+			targetHardwareAddrr: arp.senderHardwareAddr,
+			targetIPAddr:        arp.senderIPAddr,
+		}.ToPacket()
+		// ethernetでカプセル化して送信
+		netdev.ethernetOutput(arp.senderHardwareAddr, arpPacket, ETHER_TYPE_ARP)
 	}
 }
 
