@@ -38,6 +38,10 @@ func byteToUint16(b []byte) uint16 {
 	return binary.BigEndian.Uint16(b)
 }
 
+func byteToUint32(b []byte) uint32 {
+	return binary.BigEndian.Uint32(b)
+}
+
 func (netdev netDevice) ethernetInput(packet []byte) {
 	// 送られてきた通信をイーサネットのフレームとして解釈する
 	netdev.etheHeader.destAddr = setMacAddr(packet[0:6])
@@ -59,6 +63,7 @@ func (netdev netDevice) ethernetInput(packet []byte) {
 	case ETHER_TYPE_IP:
 		fmt.Println("packet is IP")
 		// Todo: IPパケットを処理する関数を呼ぶ
+		// netdev.ipInput(packet[14:])
 	}
 
 }
