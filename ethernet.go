@@ -1,8 +1,10 @@
 package main
 
 import (
+	"bytes"
 	"encoding/binary"
 	"fmt"
+	"log"
 )
 
 const ETHER_TYPE_IP uint16 = 0x0800
@@ -16,6 +18,14 @@ type ethernetHeader struct {
 	destAddr  [6]uint8 // 宛先MACアドレス
 	srcAddr   [6]uint8 // 送信元MACアドレス
 	etherType uint16   //イーサタイプ
+}
+
+func (ethHeader ethernetHeader) ToPacket() []byte {
+	var b bytes.Buffer
+	b.Write(macToByte(ethHeader.destAddr))
+	b.Write(macToByte(ethHeader.srcAddr))
+	b.Write(uint16ToByte(ethHeader.etherType))
+	return b.Bytes()
 }
 
 func setMacAddr(macAddrByte []byte) [6]uint8 {
@@ -34,6 +44,13 @@ func setIPAddr(ipAddrByte []byte) [4]uint8 {
 	return ipAddrUint8
 }
 
+func macToByte(macaddr [6]uint8) (b []byte) {
+	for _, v := range macaddr {
+		b = append(b, v)
+	}
+	return b
+}
+
 func byteToUint16(b []byte) uint16 {
 	return binary.BigEndian.Uint16(b)
 }
@@ -42,6 +59,19 @@ func byteToUint32(b []byte) uint32 {
 	return binary.BigEndian.Uint32(b)
 }
 
+func uint16ToByte(i uint16) []byte {
+	b := make([]byte, 2)
+	binary.BigEndian.PutUint16(b, i)
+	return b
+}
+
+func uint32ToByte(i uint32) []byte {
+	b := make([]byte, 4)
+	binary.BigEndian.PutUint32(b, i)
+	return b
+}
+
+// イーサネットの受信処理
 func (netdev netDevice) ethernetInput(packet []byte) {
 	// 送られてきた通信をイーサネットのフレームとして解釈する
 	netdev.etheHeader.destAddr = setMacAddr(packet[0:6])
@@ -65,5 +95,22 @@ func (netdev netDevice) ethernetInput(packet []byte) {
 		// Todo: IPパケットを処理する関数を呼ぶ
 		// netdev.ipInput(packet[14:])
 	}
+}
 
+// イーサネットにカプセル化して送信
+func (netdev netDevice) ethernetOutput(destaddr [6]uint8, packet []byte, ethType uint16) {
+	// イーサネットヘッダのパケットを作成
+	ethHeaderPacket := ethernetHeader{
+		destAddr:  destaddr,
+		srcAddr:   netdev.macaddr,
+		etherType: ethType,
+	}.ToPacket()
+	// イーサネットヘッダに送信するパケットをつなげる
+	ethHeaderPacket = append(ethHeaderPacket, packet...)
+	fmt.Printf("ethernet output packet is %x\n", ethHeaderPacket)
+	// ネットワークデバイスに送信する
+	err := netdev.netDeviceTransmit(ethHeaderPacket)
+	if err != nil {
+		log.Fatalf("netDeviceTransmit is err : %v", err)
+	}
 }

@@ -141,6 +141,9 @@ func arpRequestArrives(netdev netDevice, arp arpIPToEthernet) {
 	// IPアドレスが設定されているデバイスからの受信かつ要求されているアドレスが自分の物だったら
 	if netdev.ipdev.address != 00000000 && netdev.ipdev.address == arp.targetIPAddr {
 		fmt.Printf("Sending arp reply via %x\n", arp.targetIPAddr)
+		fmt.Printf("macaddr is  %+v\n", netdev.macaddr)
+		fmt.Printf("netdev is  %+v\n", netdev.etheHeader.srcAddr)
+		fmt.Printf("arp send is %x\n", arp.senderHardwareAddr)
 		// APRリプライのパケットを作成
 		arpPacket := arpIPToEthernet{
 			hardwareType:        ARP_HTYPE_ETHERNET,
@@ -153,6 +156,7 @@ func arpRequestArrives(netdev netDevice, arp arpIPToEthernet) {
 			targetHardwareAddrr: arp.senderHardwareAddr,
 			targetIPAddr:        arp.senderIPAddr,
 		}.ToPacket()
+
 		// ethernetでカプセル化して送信
 		netdev.ethernetOutput(arp.senderHardwareAddr, arpPacket, ETHER_TYPE_ARP)
 	}
