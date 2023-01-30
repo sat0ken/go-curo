@@ -90,11 +90,11 @@ func ethernetInput(netdev *netDevice, packet []byte) {
 		fmt.Println("packet is ARP")
 		err := arpInput(netdev, packet[14:])
 		if err != nil {
-			log.Fatal(err)
+			log.Println(err)
 		}
 	case ETHER_TYPE_IP:
 		fmt.Println("packet is IP")
-		// netdev.ipInput(packet[14:])
+		ipInput(netdev, packet[14:])
 	}
 }
 
