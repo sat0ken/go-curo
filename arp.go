@@ -30,7 +30,7 @@ type arpIPToEthernet struct {
 type arpTableEntry struct {
 	macAddr [6]uint8
 	ipAddr  uint32
-	netdev  netDevice
+	netdev  *netDevice
 }
 
 func (arpmsg arpIPToEthernet) ToPacket() []byte {
@@ -53,7 +53,7 @@ func (arpmsg arpIPToEthernet) ToPacket() []byte {
 ARPパケットの受信処理
 https://github.com/kametan0730/interface_2022_11/blob/master/chapter2/arp.cpp#L139
 */
-func (netdev netDevice) arpInput(packet []byte) error {
+func arpInput(netdev *netDevice, packet []byte) error {
 	// ARPパケットの規定より短かったら
 	if len(packet) < 28 {
 		return fmt.Errorf("received ARP Packet is too short")
@@ -105,7 +105,7 @@ ARPテーブルにエントリの追加と更新
 Todo: C++わからないから配列に入れてるけどあってる？？
 https://github.com/kametan0730/interface_2022_11/blob/master/chapter2/arp.cpp#L23
 */
-func addArpTableEntry(netdev netDevice, ipaddr uint32, macaddr [6]uint8) {
+func addArpTableEntry(netdev *netDevice, ipaddr uint32, macaddr [6]uint8) {
 
 	// 既存のARPテーブルの更新が必要か確認
 	if len(ArpTableEntryList) != 0 {
@@ -134,16 +134,27 @@ func addArpTableEntry(netdev netDevice, ipaddr uint32, macaddr [6]uint8) {
 }
 
 /*
+ARPテーブルの検索
+*/
+func searchArpTableEntry(ipaddr uint32) [6]uint8 {
+	if len(ArpTableEntryList) != 0 {
+		for _, arpTable := range ArpTableEntryList {
+			if arpTable.ipAddr == ipaddr {
+				return arpTable.macAddr
+			}
+		}
+	}
+	return [6]uint8{}
+}
+
+/*
 ARPリクエストパケットの受信処理
 https://github.com/kametan0730/interface_2022_11/blob/master/chapter2/arp.cpp#L181
 */
-func arpRequestArrives(netdev netDevice, arp arpIPToEthernet) {
+func arpRequestArrives(netdev *netDevice, arp arpIPToEthernet) {
 	// IPアドレスが設定されているデバイスからの受信かつ要求されているアドレスが自分の物だったら
 	if netdev.ipdev.address != 00000000 && netdev.ipdev.address == arp.targetIPAddr {
 		fmt.Printf("Sending arp reply via %x\n", arp.targetIPAddr)
-		fmt.Printf("macaddr is  %+v\n", netdev.macaddr)
-		fmt.Printf("netdev is  %+v\n", netdev.etheHeader.srcAddr)
-		fmt.Printf("arp send is %x\n", arp.senderHardwareAddr)
 		// APRリプライのパケットを作成
 		arpPacket := arpIPToEthernet{
 			hardwareType:        ARP_HTYPE_ETHERNET,
@@ -158,7 +169,7 @@ func arpRequestArrives(netdev netDevice, arp arpIPToEthernet) {
 		}.ToPacket()
 
 		// ethernetでカプセル化して送信
-		netdev.ethernetOutput(arp.senderHardwareAddr, arpPacket, ETHER_TYPE_ARP)
+		ethernetOutput(netdev, arp.senderHardwareAddr, arpPacket, ETHER_TYPE_ARP)
 	}
 }
 
@@ -166,11 +177,33 @@ func arpRequestArrives(netdev netDevice, arp arpIPToEthernet) {
 ARPリプライパケットの受信処理
 https://github.com/kametan0730/interface_2022_11/blob/master/chapter2/arp.cpp#L213
 */
-func arpReplArrives(netdev netDevice, arp arpIPToEthernet) {
+func arpReplArrives(netdev *netDevice, arp arpIPToEthernet) {
 	// IPアドレスが設定されているデバイスからの受信だったら
 	if netdev.ipdev.address != 00000000 {
 		fmt.Printf("Added arp table entry by arp reply (%x => %x)\n", arp.senderIPAddr, arp.senderHardwareAddr)
 		// ARPテーブルエントリの追加
 		addArpTableEntry(netdev, arp.senderIPAddr, arp.senderHardwareAddr)
 	}
+}
+
+/*
+ARPリクエストの送信
+https://github.com/kametan0730/interface_2022_11/blob/master/chapter2/arp.cpp#L111
+*/
+func sendArpRequest(netdev *netDevice, targetip uint32) {
+	fmt.Printf("Sending arp request via %s for %x\n", netdev.name, targetip)
+	// APRリクエストのパケットを作成
+	arpPacket := arpIPToEthernet{
+		hardwareType:        ARP_HTYPE_ETHERNET,
+		protocolType:        ETHER_TYPE_IP,
+		hardwareLen:         ETHERNET_ADDRES_LEN,
+		protocolLen:         IP_ADDRESS_LEN,
+		opcode:              ARP_OPERATION_CODE_REQUEST,
+		senderHardwareAddr:  netdev.macaddr,
+		senderIPAddr:        netdev.ipdev.address,
+		targetHardwareAddrr: ETHERNET_ADDRESS_BROADCAST,
+		targetIPAddr:        targetip,
+	}.ToPacket()
+	// ethernetでカプセル化して送信
+	ethernetOutput(netdev, ETHERNET_ADDRESS_BROADCAST, arpPacket, ETHER_TYPE_ARP)
 }

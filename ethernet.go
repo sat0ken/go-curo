@@ -72,7 +72,7 @@ func uint32ToByte(i uint32) []byte {
 }
 
 // イーサネットの受信処理
-func (netdev netDevice) ethernetInput(packet []byte) {
+func ethernetInput(netdev *netDevice, packet []byte) {
 	// 送られてきた通信をイーサネットのフレームとして解釈する
 	netdev.etheHeader.destAddr = setMacAddr(packet[0:6])
 	netdev.etheHeader.srcAddr = setMacAddr(packet[6:12])
@@ -88,17 +88,18 @@ func (netdev netDevice) ethernetInput(packet []byte) {
 	switch netdev.etheHeader.etherType {
 	case ETHER_TYPE_ARP:
 		fmt.Println("packet is ARP")
-		// Todo: ARPパケットを処理する関数を呼ぶ
-		netdev.arpInput(packet[14:])
+		err := arpInput(netdev, packet[14:])
+		if err != nil {
+			log.Fatal(err)
+		}
 	case ETHER_TYPE_IP:
 		fmt.Println("packet is IP")
-		// Todo: IPパケットを処理する関数を呼ぶ
 		// netdev.ipInput(packet[14:])
 	}
 }
 
 // イーサネットにカプセル化して送信
-func (netdev netDevice) ethernetOutput(destaddr [6]uint8, packet []byte, ethType uint16) {
+func ethernetOutput(netdev *netDevice, destaddr [6]uint8, packet []byte, ethType uint16) {
 	// イーサネットヘッダのパケットを作成
 	ethHeaderPacket := ethernetHeader{
 		destAddr:  destaddr,

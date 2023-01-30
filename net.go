@@ -55,7 +55,7 @@ func (netdev netDevice) netDevicePoll(mode string) error {
 	if mode == "chapter1" {
 		fmt.Printf("Received %d bytes from %s: %x\n", n, netdev.name, recvbuffer[:n])
 	} else {
-		netdev.ethernetInput(recvbuffer[:n])
+		ethernetInput(&netdev, recvbuffer[:n])
 	}
 
 	return nil
