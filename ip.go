@@ -81,7 +81,7 @@ func ipInput(inputdev *netDevice, packet []byte) {
 		toIPString(ipheader.srcAddr), toIPString(ipheader.destAddr))
 
 	fmt.Printf("ip header is %+v\n", ipheader)
-	fmt.Printf("input net dev is %s, %d\n", inputdev.name, inputdev.ipdev.address)
+	// fmt.Printf("input net dev is %s, %d\n", inputdev.name, inputdev.ipdev.address)
 	// IPバージョンが4でなければドロップ
 	// Todo: IPv6の実装
 	if ipheader.version != 4 {
@@ -99,13 +99,11 @@ func ipInput(inputdev *netDevice, packet []byte) {
 		return
 	}
 
-	// 宛先アドレスがブロードキャストアドレスの場合
-	if ipheader.destAddr == IP_ADDRESS_LIMITED_BROADCAST && inputdev.ipdev.address == ipheader.destAddr {
+	// 宛先アドレスがブロードキャストアドレスか自分のIPアドレスの場合
+	if ipheader.destAddr == IP_ADDRESS_LIMITED_BROADCAST || inputdev.ipdev.address == ipheader.destAddr {
 		// 自分宛の通信として処理
 		// ipInputToOurs()
 		fmt.Println("Todo: 自分宛の通信として処理")
 	}
-
-	// 宛先IPアドレスをルータが持ってるか調べる
 
 }
