@@ -87,13 +87,11 @@ func ethernetInput(netdev *netDevice, packet []byte) {
 	// イーサタイプの値から上位プロトコルを特定する
 	switch netdev.etheHeader.etherType {
 	case ETHER_TYPE_ARP:
-		fmt.Println("packet is ARP")
 		err := arpInput(netdev, packet[14:])
 		if err != nil {
 			log.Println(err)
 		}
 	case ETHER_TYPE_IP:
-		fmt.Println("packet is IP")
 		ipInput(netdev, packet[14:])
 	}
 }
