@@ -139,15 +139,17 @@ func ipInputToOurs(inputdev *netDevice, ipheader ipHeader) {
 IPパケットにカプセル化して送信
 https://github.com/kametan0730/interface_2022_11/blob/master/chapter2/ip.cpp#L102
 */
-func ipEncapsulateOutput(destAddr, srcAddr uint32, payload []byte, protocolType uint8) {
+func ipPacketEncapsulate(destAddr, srcAddr uint32, payload []byte, protocolType uint8) []byte {
+	var packet bytes.Buffer
+
 	// IPヘッダで必要なIPパケットの全長を算出する
 	// IPヘッダの20byte + パケットの長さ
 	totalLength := 20 + len(payload)
 
 	// IPヘッダの各項目を設定
-	packet := ipHeader{
+	ipheader := ipHeader{
 		version:        4,
-		headerLen:      20,
+		headerLen:      20 / 4,
 		tos:            0,
 		totalLen:       uint16(totalLength),
 		identify:       0x48dd,
@@ -158,5 +160,22 @@ func ipEncapsulateOutput(destAddr, srcAddr uint32, payload []byte, protocolType 
 		srcAddr:        srcAddr,
 		destAddr:       destAddr,
 	}
-	_ = packet
+
+	packet.Write([]byte{(ipheader.version<<4 + ipheader.headerLen)})
+	packet.Write([]byte{ipheader.tos})
+	packet.Write(uint16ToByte(ipheader.totalLen))
+	packet.Write(uint16ToByte(ipheader.identify))
+	packet.Write(uint16ToByte(ipheader.fragOffset))
+	packet.Write([]byte{ipheader.ttl})
+	packet.Write([]byte{ipheader.protocol})
+	packet.Write(uint16ToByte(ipheader.headerChecksum))
+	packet.Write(uint32ToByte(ipheader.srcAddr))
+	packet.Write(uint32ToByte(ipheader.destAddr))
+
+	// Todo: checksumの計算
+
+	// payloadを追加
+	// packet.Write(payload)
+
+	return packet.Bytes()
 }
