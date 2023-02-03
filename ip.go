@@ -139,8 +139,8 @@ func ipInputToOurs(inputdev *netDevice, ipheader ipHeader) {
 IPパケットにカプセル化して送信
 https://github.com/kametan0730/interface_2022_11/blob/master/chapter2/ip.cpp#L102
 */
-func ipPacketEncapsulate(destAddr, srcAddr uint32, payload []byte, protocolType uint8) []byte {
-	var packet bytes.Buffer
+func ipPacketEncapsulate(destAddr, srcAddr uint32, payload []byte, protocolType uint8) (ipPacket []byte) {
+	var b bytes.Buffer
 
 	// IPヘッダで必要なIPパケットの全長を算出する
 	// IPヘッダの20byte + パケットの長さ
@@ -152,30 +152,36 @@ func ipPacketEncapsulate(destAddr, srcAddr uint32, payload []byte, protocolType 
 		headerLen:      20 / 4,
 		tos:            0,
 		totalLen:       uint16(totalLength),
-		identify:       0x48dd,
+		identify:       0xf80c,
 		fragOffset:     2 << 13,
 		ttl:            0x40,
 		protocol:       protocolType,
-		headerChecksum: 0,
+		headerChecksum: 0, // checksum計算する前は0をセット
 		srcAddr:        srcAddr,
 		destAddr:       destAddr,
 	}
 
-	packet.Write([]byte{(ipheader.version<<4 + ipheader.headerLen)})
-	packet.Write([]byte{ipheader.tos})
-	packet.Write(uint16ToByte(ipheader.totalLen))
-	packet.Write(uint16ToByte(ipheader.identify))
-	packet.Write(uint16ToByte(ipheader.fragOffset))
-	packet.Write([]byte{ipheader.ttl})
-	packet.Write([]byte{ipheader.protocol})
-	packet.Write(uint16ToByte(ipheader.headerChecksum))
-	packet.Write(uint32ToByte(ipheader.srcAddr))
-	packet.Write(uint32ToByte(ipheader.destAddr))
+	b.Write([]byte{ipheader.version<<4 + ipheader.headerLen})
+	b.Write([]byte{ipheader.tos})
+	b.Write(uint16ToByte(ipheader.totalLen))
+	b.Write(uint16ToByte(ipheader.identify))
+	b.Write(uint16ToByte(ipheader.fragOffset))
+	b.Write([]byte{ipheader.ttl})
+	b.Write([]byte{ipheader.protocol})
+	b.Write(uint16ToByte(ipheader.headerChecksum))
+	b.Write(uint32ToByte(ipheader.srcAddr))
+	b.Write(uint32ToByte(ipheader.destAddr))
 
-	// Todo: checksumの計算
+	// checksumを計算する
+	ipPacket = b.Bytes()
+	checksum := calcChecksum(ipPacket)
+
+	// checksumをセット
+	ipPacket[10] = checksum[0]
+	ipPacket[11] = checksum[1]
 
 	// payloadを追加
-	// packet.Write(payload)
+	ipPacket = append(ipPacket, payload...)
 
-	return packet.Bytes()
+	return ipPacket
 }
