@@ -54,7 +54,7 @@ func getIPdevice(addrs []net.Addr) (ipdev ipDevice) {
 	return ipdev
 }
 
-func toIPString(ip uint32) string {
+func printIPAddr(ip uint32) string {
 	ipbyte := uint32ToByte(ip)
 	return fmt.Sprintf("%d.%d.%d.%d", ipbyte[0], ipbyte[1], ipbyte[2], ipbyte[3])
 }
@@ -88,7 +88,7 @@ func ipInput(inputdev *netDevice, packet []byte) {
 		destAddr:       byteToUint32(packet[16:20]),
 	}
 	fmt.Printf("Received IP packet type %d from %s to %s\n", ipheader.protocol,
-		toIPString(ipheader.srcAddr), toIPString(ipheader.destAddr))
+		printIPAddr(ipheader.srcAddr), printIPAddr(ipheader.destAddr))
 
 	fmt.Printf("ip header is %+v\n", ipheader)
 	// fmt.Printf("input net dev is %s, %d\n", inputdev.name, inputdev.ipdev.address)
