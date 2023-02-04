@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"log"
+	"strings"
 )
 
 const ETHER_TYPE_IP uint16 = 0x0800
@@ -49,6 +50,14 @@ func macToByte(macaddr [6]uint8) (b []byte) {
 		b = append(b, v)
 	}
 	return b
+}
+
+func printMacAddr(macddr [6]uint8) string {
+	var str string
+	for _, v := range macddr {
+		str += fmt.Sprintf("%x:", v)
+	}
+	return strings.TrimRight(str, ":")
 }
 
 func byteToUint16(b []byte) uint16 {
@@ -106,7 +115,7 @@ func ethernetOutput(netdev *netDevice, destaddr [6]uint8, packet []byte, ethType
 	}.ToPacket()
 	// イーサネットヘッダに送信するパケットをつなげる
 	ethHeaderPacket = append(ethHeaderPacket, packet...)
-	fmt.Printf("ethernet output packet is %x\n", ethHeaderPacket)
+	// fmt.Printf("ethernet output packet is %x\n", ethHeaderPacket)
 	// ネットワークデバイスに送信する
 	err := netdev.netDeviceTransmit(ethHeaderPacket)
 	if err != nil {

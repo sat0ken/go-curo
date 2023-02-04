@@ -72,8 +72,6 @@ func arpInput(netdev *netDevice, packet []byte) error {
 		targetIPAddr:        byteToUint32(packet[24:28]),
 	}
 
-	fmt.Printf("ARP Packet is %+v\n", arpMsg)
-
 	switch arpMsg.protocolType {
 	case ETHER_TYPE_IP:
 
@@ -88,11 +86,11 @@ func arpInput(netdev *netDevice, packet []byte) error {
 		// オペレーションコードによって分岐
 		if arpMsg.opcode == ARP_OPERATION_CODE_REQUEST {
 			// ARPリクエストの受信
-			fmt.Println("ARPリクエストの受信")
+			fmt.Printf("ARP Request Packet is %+v\n", arpMsg)
 			arpRequestArrives(netdev, arpMsg)
 		} else {
 			// ARPリプライの受信
-			fmt.Println("ARPリプライの受信")
+			fmt.Printf("ARP Reply Packet is %+v\n", arpMsg)
 			arpReplArrives(netdev, arpMsg)
 		}
 	}
@@ -154,7 +152,7 @@ https://github.com/kametan0730/interface_2022_11/blob/master/chapter2/arp.cpp#L1
 func arpRequestArrives(netdev *netDevice, arp arpIPToEthernet) {
 	// IPアドレスが設定されているデバイスからの受信かつ要求されているアドレスが自分の物だったら
 	if netdev.ipdev.address != 00000000 && netdev.ipdev.address == arp.targetIPAddr {
-		fmt.Printf("Sending arp reply via %x\n", arp.targetIPAddr)
+		fmt.Printf("Sending arp reply via %s\n", printIPAddr(arp.targetIPAddr))
 		// APRリプライのパケットを作成
 		arpPacket := arpIPToEthernet{
 			hardwareType:        ARP_HTYPE_ETHERNET,
@@ -180,7 +178,7 @@ https://github.com/kametan0730/interface_2022_11/blob/master/chapter2/arp.cpp#L2
 func arpReplArrives(netdev *netDevice, arp arpIPToEthernet) {
 	// IPアドレスが設定されているデバイスからの受信だったら
 	if netdev.ipdev.address != 00000000 {
-		fmt.Printf("Added arp table entry by arp reply (%x => %x)\n", arp.senderIPAddr, arp.senderHardwareAddr)
+		fmt.Printf("Added arp table entry by arp reply (%s => %s)\n", printIPAddr(arp.senderIPAddr), printMacAddr(arp.senderHardwareAddr))
 		// ARPテーブルエントリの追加
 		addArpTableEntry(netdev, arp.senderIPAddr, arp.senderHardwareAddr)
 	}
