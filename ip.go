@@ -33,10 +33,29 @@ type ipHeader struct {
 	destAddr       uint32 // 送信先IPアドレス
 }
 
-func (ipheader ipHeader) ToPacket() []byte {
+func (ipheader ipHeader) ToPacket() (ipHeaderByte []byte) {
 	var b bytes.Buffer
 
-	return b.Bytes()
+	b.Write([]byte{ipheader.version<<4 + ipheader.headerLen})
+	b.Write([]byte{ipheader.tos})
+	b.Write(uint16ToByte(ipheader.totalLen))
+	b.Write(uint16ToByte(ipheader.identify))
+	b.Write(uint16ToByte(ipheader.fragOffset))
+	b.Write([]byte{ipheader.ttl})
+	b.Write([]byte{ipheader.protocol})
+	b.Write(uint16ToByte(ipheader.headerChecksum))
+	b.Write(uint32ToByte(ipheader.srcAddr))
+	b.Write(uint32ToByte(ipheader.destAddr))
+
+	// checksumを計算する
+	ipHeaderByte = b.Bytes()
+	checksum := calcChecksum(ipHeaderByte)
+
+	// checksumをセット
+	ipHeaderByte[10] = checksum[0]
+	ipHeaderByte[11] = checksum[1]
+
+	return ipHeaderByte
 }
 
 func getIPdevice(addrs []net.Addr) (ipdev ipDevice) {
@@ -112,7 +131,7 @@ func ipInput(inputdev *netDevice, packet []byte) {
 	// 宛先アドレスがブロードキャストアドレスか自分のIPアドレスの場合
 	if ipheader.destAddr == IP_ADDRESS_LIMITED_BROADCAST || inputdev.ipdev.address == ipheader.destAddr {
 		// 自分宛の通信として処理
-		ipInputToOurs(inputdev, ipheader)
+		ipInputToOurs(inputdev, ipheader, packet[20:])
 	}
 }
 
@@ -120,11 +139,12 @@ func ipInput(inputdev *netDevice, packet []byte) {
 自分宛のIPパケットの処理
 https://github.com/kametan0730/interface_2022_11/blob/master/chapter2/ip.cpp#L26
 */
-func ipInputToOurs(inputdev *netDevice, ipheader ipHeader) {
+func ipInputToOurs(inputdev *netDevice, ipheader ipHeader, packet []byte) {
 	// 上位プロトコルの処理に移行
 	switch ipheader.protocol {
 	case IP_PROTOCOL_NUM_ICMP:
 		fmt.Println("ICMP received!")
+		icmpInput(ipheader.srcAddr, ipheader.destAddr, packet)
 	case IP_PROTOCOL_NUM_UDP:
 		return
 	case IP_PROTOCOL_NUM_TCP:
@@ -140,8 +160,6 @@ IPパケットにカプセル化して送信
 https://github.com/kametan0730/interface_2022_11/blob/master/chapter2/ip.cpp#L102
 */
 func ipPacketEncapsulate(destAddr, srcAddr uint32, payload []byte, protocolType uint8) (ipPacket []byte) {
-	var b bytes.Buffer
-
 	// IPヘッダで必要なIPパケットの全長を算出する
 	// IPヘッダの20byte + パケットの長さ
 	totalLength := 20 + len(payload)
@@ -160,28 +178,13 @@ func ipPacketEncapsulate(destAddr, srcAddr uint32, payload []byte, protocolType 
 		srcAddr:        srcAddr,
 		destAddr:       destAddr,
 	}
-
-	b.Write([]byte{ipheader.version<<4 + ipheader.headerLen})
-	b.Write([]byte{ipheader.tos})
-	b.Write(uint16ToByte(ipheader.totalLen))
-	b.Write(uint16ToByte(ipheader.identify))
-	b.Write(uint16ToByte(ipheader.fragOffset))
-	b.Write([]byte{ipheader.ttl})
-	b.Write([]byte{ipheader.protocol})
-	b.Write(uint16ToByte(ipheader.headerChecksum))
-	b.Write(uint32ToByte(ipheader.srcAddr))
-	b.Write(uint32ToByte(ipheader.destAddr))
-
-	// checksumを計算する
-	ipPacket = b.Bytes()
-	checksum := calcChecksum(ipPacket)
-
-	// checksumをセット
-	ipPacket[10] = checksum[0]
-	ipPacket[11] = checksum[1]
-
+	// IPヘッダをByteにする
+	ipPacket = append(ipPacket, ipheader.ToPacket()...)
 	// payloadを追加
 	ipPacket = append(ipPacket, payload...)
+
+	// Todo: ルートテーブルを検索して送信先IPのMACアドレスがなければ、
+	// ARPリクエストを生成して送信して結果を受信してから、ethernetからパケットを送る
 
 	return ipPacket
 }
