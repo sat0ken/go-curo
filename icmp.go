@@ -1,6 +1,9 @@
 package main
 
-import "fmt"
+import (
+	"bytes"
+	"fmt"
+)
 
 const (
 	ICMP_TYPE_ECHO_REPLY              uint8 = 0
@@ -39,7 +42,30 @@ type icmpMessage struct {
 	icmpTimeExceeded           icmpTimeExceeded
 }
 
-func icmpInput(sourceAddr, destAddr uint32, icmpPacket []byte) {
+func (icmpmsg icmpMessage) ToPacket() (icmpPacket []byte) {
+	var b bytes.Buffer
+	// ICMPヘッダ
+	b.Write([]byte{ICMP_TYPE_ECHO_REPLY})
+	b.Write([]byte{0x00})       // icmp code
+	b.Write([]byte{0x00, 0x00}) // checksum
+	// ICMPエコーメッセージ
+	b.Write(uint16ToByte(icmpmsg.icmpEcho.identify))
+	b.Write(uint16ToByte(icmpmsg.icmpEcho.sequence))
+	b.Write(icmpmsg.icmpEcho.timestamp)
+	b.Write(icmpmsg.icmpEcho.data)
+
+	icmpPacket = b.Bytes()
+	checksum := calcChecksum(icmpPacket)
+	// 計算したチェックサムをセット
+	icmpPacket[2] = checksum[0]
+	icmpPacket[3] = checksum[1]
+
+	fmt.Printf("Send ICMP Packet is %x\n", icmpPacket)
+
+	return icmpPacket
+}
+
+func icmpInput(inputdev *netDevice, sourceAddr, destAddr uint32, icmpPacket []byte) {
 	// ICMPメッセージ長より短かったら
 	if len(icmpPacket) < 4 {
 		fmt.Println("Received ICMP Packet is too short")
@@ -58,12 +84,13 @@ func icmpInput(sourceAddr, destAddr uint32, icmpPacket []byte) {
 			data:      icmpPacket[16:],
 		},
 	}
-	fmt.Printf("ICMP Packet is %+v\n", icmpmsg)
+	// fmt.Printf("ICMP Packet is %+v\n", icmpmsg)
 
 	switch icmpmsg.icmpHeader.icmpType {
 	case ICMP_TYPE_ECHO_REPLY:
 		fmt.Println("ICMP ECHO REPLY is received")
 	case ICMP_TYPE_ECHO_REQUEST:
-		// Todo: ICMPリプライを作成
+		fmt.Println("ICMP ECHO REQUEST is received, Create Reply Packet")
+		ipPacketEncapsulate(inputdev, sourceAddr, destAddr, icmpmsg.ToPacket(), IP_PROTOCOL_NUM_ICMP)
 	}
 }
