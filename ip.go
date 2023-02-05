@@ -109,7 +109,7 @@ func ipInput(inputdev *netDevice, packet []byte) {
 	fmt.Printf("Received IP packet type %d from %s to %s\n", ipheader.protocol,
 		printIPAddr(ipheader.srcAddr), printIPAddr(ipheader.destAddr))
 
-	fmt.Printf("ip header is %+v\n", ipheader)
+	// fmt.Printf("ip header is %+v\n", ipheader)
 	// fmt.Printf("input net dev is %s, %d\n", inputdev.name, inputdev.ipdev.address)
 	// IPバージョンが4でなければドロップ
 	// Todo: IPv6の実装
@@ -144,7 +144,7 @@ func ipInputToOurs(inputdev *netDevice, ipheader ipHeader, packet []byte) {
 	switch ipheader.protocol {
 	case IP_PROTOCOL_NUM_ICMP:
 		fmt.Println("ICMP received!")
-		icmpInput(ipheader.srcAddr, ipheader.destAddr, packet)
+		icmpInput(inputdev, ipheader.srcAddr, ipheader.destAddr, packet)
 	case IP_PROTOCOL_NUM_UDP:
 		return
 	case IP_PROTOCOL_NUM_TCP:
@@ -159,7 +159,9 @@ func ipInputToOurs(inputdev *netDevice, ipheader ipHeader, packet []byte) {
 IPパケットにカプセル化して送信
 https://github.com/kametan0730/interface_2022_11/blob/master/chapter2/ip.cpp#L102
 */
-func ipPacketEncapsulate(destAddr, srcAddr uint32, payload []byte, protocolType uint8) (ipPacket []byte) {
+func ipPacketEncapsulate(inputdev *netDevice, destAddr, srcAddr uint32, payload []byte, protocolType uint8) {
+	var ipPacket []byte
+
 	// IPヘッダで必要なIPパケットの全長を算出する
 	// IPヘッダの20byte + パケットの長さ
 	totalLength := 20 + len(payload)
@@ -185,6 +187,13 @@ func ipPacketEncapsulate(destAddr, srcAddr uint32, payload []byte, protocolType 
 
 	// Todo: ルートテーブルを検索して送信先IPのMACアドレスがなければ、
 	// ARPリクエストを生成して送信して結果を受信してから、ethernetからパケットを送る
-
-	return ipPacket
+	destMacAddr := searchArpTableEntry(destAddr)
+	if destMacAddr != [6]uint8{0, 0, 0, 0, 0, 0} {
+		// ルートテーブルに送信するIPアドレスのMACアドレスがあれば送信
+		fmt.Println("MACアドレスがあったので送信")
+		ethernetOutput(inputdev, destMacAddr, ipPacket, ETHER_TYPE_IP)
+	} else {
+		// Todo: ARPリクエストを出す
+		fmt.Println("ARPリクエストを出す")
+	}
 }
