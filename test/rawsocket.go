@@ -23,7 +23,7 @@ func main() {
 	}
 	addr1 := syscall.SockaddrLinklayer{
 		Protocol: htons(syscall.ETH_P_ALL),
-		Ifindex:  15,
+		Ifindex:  21,
 	}
 	err = syscall.Bind(sock1, &addr1)
 	if err != nil {
@@ -31,7 +31,7 @@ func main() {
 	}
 	addr2 := syscall.SockaddrLinklayer{
 		Protocol: htons(syscall.ETH_P_ALL),
-		Ifindex:  18,
+		Ifindex:  24,
 	}
 	err = syscall.Bind(sock2, &addr2)
 	if err != nil {
