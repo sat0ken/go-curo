@@ -9,6 +9,13 @@ import (
 
 func runChapter2() {
 	var netDeviceList []netDevice
+	events := make([]syscall.EpollEvent, 10)
+
+	// epoll作成
+	epfd, err := syscall.EpollCreate1(0)
+	if err != nil {
+		log.Fatalf("epoll create err : %s", err)
+	}
 
 	// ネットワークインターフェイスの情報を取得
 	interfaces, _ := net.Interfaces()
@@ -31,11 +38,16 @@ func runChapter2() {
 			}
 			fmt.Printf("Created device %s socket %d adddress %s\n",
 				netif.Name, sock, netif.HardwareAddr.String())
-			// ノンブロッキングに設定
-			err = syscall.SetNonblock(sock, true)
-			if err != nil {
-				log.Fatalf("set non block is err : %s", err)
-			}
+			// socketをepollの監視対象として登録
+			err = syscall.EpollCtl(epfd, syscall.EPOLL_CTL_ADD, sock, &syscall.EpollEvent{
+				Events: syscall.EPOLLIN,
+				Fd:     int32(sock),
+			})
+			// ノンブロッキングに設定←epollを使うのでしない
+			//err = syscall.SetNonblock(sock, true)
+			//if err != nil {
+			//	log.Fatalf("set non block is err : %s", err)
+			//}
 			netaddrs, err := netif.Addrs()
 			if err != nil {
 				log.Fatalf("get ip addr from nic interface is err : %s", err)
@@ -54,11 +66,21 @@ func runChapter2() {
 	}
 
 	for {
-		// デバイスから通信を受信
-		for _, netdev := range netDeviceList {
-			err := netdev.netDevicePoll("chapter2")
-			if err != nil {
-				log.Fatal(err)
+		// epoll_waitでパケットの受信を待つ
+		nfds, err := syscall.EpollWait(epfd, events, -1)
+		if err != nil {
+			log.Fatalf("epoll wait err : %s", err)
+		}
+		for i := 0; i < nfds; i++ {
+			// デバイスから通信を受信
+			for _, netdev := range netDeviceList {
+				// イベントがあったソケットとマッチしたらパケットを読み込む処理を実行
+				if events[i].Fd == int32(netdev.socket) {
+					err := netdev.netDevicePoll("chapter2")
+					if err != nil {
+						log.Fatal(err)
+					}
+				}
 			}
 		}
 	}
