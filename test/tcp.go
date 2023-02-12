@@ -58,21 +58,23 @@ func main() {
 		if err != nil {
 			log.Fatalf("epoll wait err : %s", err)
 		}
+		// fmt.Printf("epol waiting is %d\n", nfds)
 
 		for i := 0; i < nfds; i++ {
-			recvbuf := make([]byte, 1500)
-			if events[i].Fd == int32(sock1) {
-				n, _, err := syscall.Recvfrom(sock1, recvbuf, 0)
+			if events[i].Pad == int32(sock1) {
+				accsock1, _, err := syscall.Accept(sock1)
 				if err != nil {
-					log.Fatalf("recv sock1 err : %s", err)
+					log.Fatalf("sock1 accept err : %s", err)
 				}
-				fmt.Printf("recv sock1 data is %s\n", string(recvbuf[:n]))
-			} else if events[i].Fd == int32(sock2) {
-				n, _, err := syscall.Recvfrom(sock2, recvbuf, 0)
+				fmt.Printf("accept socket1 is %d\n", accsock1)
+				err = syscall.EpollCtl(epfd, syscall.EPOLL_CTL_ADD, accsock1, &syscall.EpollEvent{
+					Events: syscall.EPOLLIN | syscall.EPOLLONESHOT,
+					Fd:     int32(accsock1),
+				})
 				if err != nil {
-					log.Fatalf("recv sock2 err : %s", err)
+					log.Fatalf("epoll ctrl err : %s", err)
 				}
-				fmt.Printf("recv sock2 data is %s\n", string(recvbuf[:n]))
+
 			}
 		}
 	}
