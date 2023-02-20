@@ -57,7 +57,7 @@ func (node *radixTreeNode) treeSearch(prefixIpAddr uint32) int {
 				return result
 			}
 			current = current.node1
-		} else { // 1ビット目が0だったら
+		} else { // iビット目が0だったら
 			if current.node0 == nil {
 				return result
 			}
