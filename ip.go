@@ -33,6 +33,12 @@ type ipHeader struct {
 	destAddr       uint32 // 送信先IPアドレス
 }
 
+type ipRouteEntry struct {
+	ipRouteType bool
+	netdev      *netDevice
+	nexthop     uint32
+}
+
 func (ipheader ipHeader) ToPacket() (ipHeaderByte []byte) {
 	var b bytes.Buffer
 
@@ -76,6 +82,18 @@ func getIPdevice(addrs []net.Addr) (ipdev ipDevice) {
 func printIPAddr(ip uint32) string {
 	ipbyte := uint32ToByte(ip)
 	return fmt.Sprintf("%d.%d.%d.%d", ipbyte[0], ipbyte[1], ipbyte[2], ipbyte[3])
+}
+
+// サブネットマスクとプレフィックス長の変換
+// 0xffffff00を24にする
+func subnetToPrefixLen(netmask uint32) uint32 {
+	var prefixlen uint32
+	for prefixlen = 0; prefixlen < 32; prefixlen++ {
+		if !(netmask>>(31-prefixlen)&0b01 == 1) {
+			break
+		}
+	}
+	return prefixlen
 }
 
 /*

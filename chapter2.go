@@ -9,6 +9,7 @@ import (
 
 func runChapter2() {
 	var netDeviceList []netDevice
+	var iproute radixTreeNode
 	events := make([]syscall.EpollEvent, 10)
 
 	// epoll作成
@@ -53,15 +54,27 @@ func runChapter2() {
 				log.Fatalf("get ip addr from nic interface is err : %s", err)
 			}
 
-			// netDevice構造体を作成
-			// net_deviceの連結リストに連結させる
-			netDeviceList = append(netDeviceList, netDevice{
+			netdev := netDevice{
 				name:     netif.Name,
 				macaddr:  setMacAddr(netif.HardwareAddr),
 				socket:   sock,
 				sockaddr: addr,
 				ipdev:    getIPdevice(netaddrs),
-			})
+			}
+
+			// 直接接続ネットワークの経路を設定
+			routeEntry := ipRouteEntry{
+				ipRouteType: true,
+				netdev:      &netdev,
+			}
+			prefixLen := subnetToPrefixLen(netdev.ipdev.netmask)
+			iproute.radixTreeAdd(netdev.ipdev.address&netdev.ipdev.netmask, prefixLen, routeEntry)
+			fmt.Printf("Set directly connected route %s/%d via %s\n",
+				printIPAddr(netdev.ipdev.address&netdev.ipdev.netmask), prefixLen, netdev.name)
+
+			// netDevice構造体を作成
+			// net_deviceの連結リストに連結させる
+			netDeviceList = append(netDeviceList, netdev)
 		}
 	}
 

@@ -1,18 +1,16 @@
 package main
 
-import "fmt"
-
 // IPアドレスのLongest prefix matchingに使う二分探索木ノード
 type radixTreeNode struct {
 	depth  int
 	parent *radixTreeNode
 	node0  *radixTreeNode // 0を入れる左のノード
 	node1  *radixTreeNode // 1を入れる右のノード
-	data   int
+	data   ipRouteEntry
 	value  int
 }
 
-func (node *radixTreeNode) treeAdd(prefixIpAddr, prefixlen uint32) {
+func (node *radixTreeNode) radixTreeAdd(prefixIpAddr, prefixlen uint32, entryData ipRouteEntry) {
 	// ルートノードから辿る
 	current := node
 	// 枝を辿る
@@ -21,7 +19,6 @@ func (node *radixTreeNode) treeAdd(prefixIpAddr, prefixlen uint32) {
 			if current.node1 == nil {
 				current.node1 = &radixTreeNode{
 					parent: current,
-					data:   0,
 					depth:  i,
 					value:  0,
 				}
@@ -32,7 +29,6 @@ func (node *radixTreeNode) treeAdd(prefixIpAddr, prefixlen uint32) {
 			if current.node0 == nil {
 				current.node0 = &radixTreeNode{
 					parent: current,
-					data:   0,
 					depth:  i,
 					value:  0,
 				}
@@ -41,15 +37,15 @@ func (node *radixTreeNode) treeAdd(prefixIpAddr, prefixlen uint32) {
 		}
 	}
 	// 最後にデータをセット
-	current.data = 100
+	current.data = entryData
 }
 
-func (node *radixTreeNode) treeSearch(prefixIpAddr uint32) int {
+func (node *radixTreeNode) radixTreeSearch(prefixIpAddr uint32) ipRouteEntry {
 	current := node
-	var result int
+	var result ipRouteEntry
 	// 検索するIPアドレスと比較して1ビットずつ辿っていく
 	for i := 1; i <= 32; i++ {
-		if current.data != 0 {
+		if current.data != (ipRouteEntry{}) {
 			result = current.data
 		}
 		if (prefixIpAddr>>(32-i))&0x01 == 1 { // 上からiビット目が1だったら
@@ -65,15 +61,4 @@ func (node *radixTreeNode) treeSearch(prefixIpAddr uint32) int {
 		}
 	}
 	return result
-}
-
-func main() {
-	var root radixTreeNode
-	var prefix uint32 = 0xC0A80002
-
-	root.treeAdd(prefix, 8)
-	fmt.Printf("node is %+v\n", root.node1.node1.node0.node0.node0.node0.node0.node0)
-
-	fmt.Printf("resulet is %d\n", root.treeSearch(prefix))
-
 }
