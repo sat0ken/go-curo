@@ -7,9 +7,12 @@ import (
 	"syscall"
 )
 
+// Global変数でルーティングテーブルを宣言
+var iproute radixTreeNode
+
 func runChapter2() {
 	var netDeviceList []netDevice
-	var iproute radixTreeNode
+
 	events := make([]syscall.EpollEvent, 10)
 
 	// epoll作成
@@ -62,10 +65,10 @@ func runChapter2() {
 				ipdev:    getIPdevice(netaddrs),
 			}
 
-			// 直接接続ネットワークの経路を設定
+			// 直接接続ネットワークの経路をルートテーブルのエントリに設定
 			routeEntry := ipRouteEntry{
-				ipRouteType: true,
-				netdev:      &netdev,
+				iptype: connected,
+				netdev: &netdev,
 			}
 			prefixLen := subnetToPrefixLen(netdev.ipdev.netmask)
 			iproute.radixTreeAdd(netdev.ipdev.address&netdev.ipdev.netmask, prefixLen, routeEntry)

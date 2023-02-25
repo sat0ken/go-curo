@@ -91,6 +91,6 @@ func icmpInput(inputdev *netDevice, sourceAddr, destAddr uint32, icmpPacket []by
 		fmt.Println("ICMP ECHO REPLY is received")
 	case ICMP_TYPE_ECHO_REQUEST:
 		fmt.Println("ICMP ECHO REQUEST is received, Create Reply Packet")
-		ipPacketEncapsulate(inputdev, sourceAddr, destAddr, icmpmsg.ToPacket(), IP_PROTOCOL_NUM_ICMP)
+		ipPacketEncapsulateOutput(inputdev, sourceAddr, destAddr, icmpmsg.ToPacket(), IP_PROTOCOL_NUM_ICMP)
 	}
 }

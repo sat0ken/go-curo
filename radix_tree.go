@@ -10,11 +10,11 @@ type radixTreeNode struct {
 	value  int
 }
 
-func (node *radixTreeNode) radixTreeAdd(prefixIpAddr, prefixlen uint32, entryData ipRouteEntry) {
+func (node *radixTreeNode) radixTreeAdd(prefixIpAddr, prefixLen uint32, entryData ipRouteEntry) {
 	// ルートノードから辿る
 	current := node
 	// 枝を辿る
-	for i := 1; i <= int(prefixlen); i++ {
+	for i := 1; i <= int(prefixLen); i++ {
 		if prefixIpAddr>>(32-i)&0x01 == 1 { // 上からiビット目が1なら
 			if current.node1 == nil {
 				current.node1 = &radixTreeNode{

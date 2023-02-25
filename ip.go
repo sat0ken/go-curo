@@ -33,10 +33,17 @@ type ipHeader struct {
 	destAddr       uint32 // 送信先IPアドレス
 }
 
+type ipRouteType uint8
+
+const (
+	connected ipRouteType = iota
+	network
+)
+
 type ipRouteEntry struct {
-	ipRouteType bool
-	netdev      *netDevice
-	nexthop     uint32
+	iptype  ipRouteType
+	netdev  *netDevice
+	nexthop uint32
 }
 
 func (ipheader ipHeader) ToPacket() (ipHeaderByte []byte) {
@@ -174,10 +181,69 @@ func ipInputToOurs(inputdev *netDevice, ipheader ipHeader, packet []byte) {
 }
 
 /*
+IPパケットを直接イーサネットでホストに送信
+*/
+func ipPacketOutputToHost(dev *netDevice, destAddr uint32, packet []byte) {
+	// ARPテーブルの検索
+	destMacAddr := searchArpTableEntry(destAddr)
+	if destMacAddr == [6]uint8{0, 0, 0, 0, 0, 0} {
+		// ARPエントリが無かったら
+		fmt.Printf("Trying ip output to host, but no arp record to %s\\n", printIPAddr(destAddr))
+		// ARPリクエストを送信
+		sendArpRequest(dev, destAddr)
+	} else {
+		// ARPエントリがあり、MACアドレスが得られたらイーサネットでカプセル化して送信
+		ethernetOutput(dev, destMacAddr, packet, ETHER_TYPE_IP)
+	}
+}
+
+/*
+IPパケットをNextHopに送信
+*/
+func ipPacketOutputToNetxhop(dev *netDevice, nextHop uint32, packet []byte) {
+	// ARPテーブルの検索
+	destMacAddr := searchArpTableEntry(nextHop)
+	if destMacAddr == [6]uint8{0, 0, 0, 0, 0, 0} {
+		fmt.Printf("Trying ip output to next hop, but no arp record to %s\n", printIPAddr(nextHop))
+		// ルーティングテーブルのルックアップ
+		routeToNexthop := iproute.radixTreeSearch(nextHop)
+		if routeToNexthop == (ipRouteEntry{}) || routeToNexthop.iptype != connected {
+			// next hopへの到達性が無かったら
+			fmt.Printf("Next hop %s is not reachable\n", printIPAddr(nextHop))
+		} else {
+			// ARPリクエストを送信
+			sendArpRequest(routeToNexthop.netdev, nextHop)
+		}
+	} else {
+		// ARPエントリがあり、MACアドレスが得られたらイーサネットでカプセル化して送信
+		ethernetOutput(dev, destMacAddr, packet, ETHER_TYPE_IP)
+	}
+}
+
+/*
+IPパケットを送信
+*/
+func ipPacketOutput(outputdev *netDevice, routeTree radixTreeNode, destAddr, srcAddr uint32, packet []byte) {
+	// 宛先IPアドレスへの経路を検索
+	route := routeTree.radixTreeSearch(destAddr)
+	if route == (ipRouteEntry{}) {
+		// 経路が見つからなかったら
+		fmt.Printf("No route to %s\n", printIPAddr(destAddr))
+	}
+	if route.iptype == connected {
+		// 直接接続されたネットワークなら
+		ipPacketOutputToHost(outputdev, destAddr, packet)
+	} else if route.iptype == network {
+		// 直接つながっていないネットワークなら
+		ipPacketOutputToNetxhop(outputdev, destAddr, packet)
+	}
+}
+
+/*
 IPパケットにカプセル化して送信
 https://github.com/kametan0730/interface_2022_11/blob/master/chapter2/ip.cpp#L102
 */
-func ipPacketEncapsulate(inputdev *netDevice, destAddr, srcAddr uint32, payload []byte, protocolType uint8) {
+func ipPacketEncapsulateOutput(inputdev *netDevice, destAddr, srcAddr uint32, payload []byte, protocolType uint8) {
 	var ipPacket []byte
 
 	// IPヘッダで必要なIPパケットの全長を算出する
@@ -203,15 +269,14 @@ func ipPacketEncapsulate(inputdev *netDevice, destAddr, srcAddr uint32, payload 
 	// payloadを追加
 	ipPacket = append(ipPacket, payload...)
 
-	// Todo: ルートテーブルを検索して送信先IPのMACアドレスがなければ、
+	// ルートテーブルを検索して送信先IPのMACアドレスがなければ、
 	// ARPリクエストを生成して送信して結果を受信してから、ethernetからパケットを送る
 	destMacAddr := searchArpTableEntry(destAddr)
 	if destMacAddr != [6]uint8{0, 0, 0, 0, 0, 0} {
 		// ルートテーブルに送信するIPアドレスのMACアドレスがあれば送信
-		fmt.Println("MACアドレスがあったので送信")
 		ethernetOutput(inputdev, destMacAddr, ipPacket, ETHER_TYPE_IP)
 	} else {
-		// Todo: ARPリクエストを出す
-		fmt.Println("ARPリクエストを出す")
+		// ARPリクエストを出す
+		sendArpRequest(inputdev, destAddr)
 	}
 }
