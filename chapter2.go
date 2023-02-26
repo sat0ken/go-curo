@@ -19,6 +19,7 @@ func runChapter2() {
 		iptype:  network,
 		nexthop: 0xc0a80002,
 	}
+	// 192.168.2.0/24の経路の登録
 	iproute.radixTreeAdd(0xc0a80202&0xffffff00, 24, routeEntryTohost2)
 
 	// epoll作成
