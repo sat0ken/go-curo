@@ -134,15 +134,15 @@ func addArpTableEntry(netdev *netDevice, ipaddr uint32, macaddr [6]uint8) {
 /*
 ARPテーブルの検索
 */
-func searchArpTableEntry(ipaddr uint32) [6]uint8 {
+func searchArpTableEntry(ipaddr uint32) ([6]uint8, *netDevice) {
 	if len(ArpTableEntryList) != 0 {
 		for _, arpTable := range ArpTableEntryList {
 			if arpTable.ipAddr == ipaddr {
-				return arpTable.macAddr
+				return arpTable.macAddr, arpTable.netdev
 			}
 		}
 	}
-	return [6]uint8{}
+	return [6]uint8{}, nil
 }
 
 /*

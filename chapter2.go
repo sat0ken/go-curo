@@ -10,12 +10,19 @@ import (
 // Global変数でルーティングテーブルを宣言
 var iproute radixTreeNode
 
-func runChapter2() {
-	var netDeviceList []netDevice
+// Global変数で宣言
+var netDeviceList []netDevice
 
-	events := make([]syscall.EpollEvent, 10)
+func runChapter2() {
+	// 直接接続ではないhost2へのルーティングを登録する
+	routeEntryTohost2 := ipRouteEntry{
+		iptype:  network,
+		nexthop: 0xc0a80002,
+	}
+	iproute.radixTreeAdd(0xc0a80202&0xffffff00, 24, routeEntryTohost2)
 
 	// epoll作成
+	events := make([]syscall.EpollEvent, 10)
 	epfd, err := syscall.EpollCreate1(0)
 	if err != nil {
 		log.Fatalf("epoll create err : %s", err)

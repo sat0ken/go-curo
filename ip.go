@@ -131,11 +131,10 @@ func ipInput(inputdev *netDevice, packet []byte) {
 		srcAddr:        byteToUint32(packet[12:16]),
 		destAddr:       byteToUint32(packet[16:20]),
 	}
+	// fmt.Printf("Input dev name is %s, ip addr is %s\n", inputdev.name, printIPAddr(inputdev.ipdev.address))
 	fmt.Printf("Received IP packet type %d from %s to %s\n", ipheader.protocol,
 		printIPAddr(ipheader.srcAddr), printIPAddr(ipheader.destAddr))
 
-	// fmt.Printf("ip header is %+v\n", ipheader)
-	// fmt.Printf("input net dev is %s, %d\n", inputdev.name, inputdev.ipdev.address)
 	// IPバージョンが4でなければドロップ
 	// Todo: IPv6の実装
 	if ipheader.version != 4 {
@@ -153,10 +152,54 @@ func ipInput(inputdev *netDevice, packet []byte) {
 		return
 	}
 
-	// 宛先アドレスがブロードキャストアドレスか自分のIPアドレスの場合
+	// 宛先アドレスがブロードキャストアドレスか受信したNICインターフェイスのIPアドレスの場合
 	if ipheader.destAddr == IP_ADDRESS_LIMITED_BROADCAST || inputdev.ipdev.address == ipheader.destAddr {
 		// 自分宛の通信として処理
 		ipInputToOurs(inputdev, ipheader, packet[20:])
+	}
+
+	// 宛先IPアドレスをルータが持ってるか調べる
+	// つまり宛先IPが他のNICインターフェイスについてるIPアドレスだったら自分宛てのものとして処理する
+	for _, dev := range netDeviceList {
+		// 宛先IPアドレスがルータの持っているIPアドレス or ディレクティッド・ブロードキャストアドレスの時の処理
+		if dev.ipdev.address == ipheader.destAddr || dev.ipdev.broadcast == ipheader.destAddr {
+			// 自分宛の通信として処理
+			ipInputToOurs(inputdev, ipheader, packet[20:])
+		}
+	}
+
+	// 宛先IPアドレスがルータの持っているIPアドレスでない場合はフォワーディングを行う
+	route := iproute.radixTreeSearch(ipheader.destAddr) // ルーティングテーブルをルックアップ
+	if route == (ipRouteEntry{}) {
+		// 宛先までの経路がなかったらパケットを破棄
+		fmt.Printf("このIPへの経路がありません : %s\n", printIPAddr(ipheader.destAddr))
+		return
+	}
+
+	// TTLが1以下ならドロップ
+	if ipheader.ttl <= 1 {
+		// Todo: send_icmp_time_exceeded関数を作成
+		return
+	}
+
+	// TTLを1へらす
+	ipheader.ttl -= 1
+
+	// IPヘッダチェックサムの再計算
+	ipheader.headerChecksum = 0
+	ipheader.headerChecksum = byteToUint16(calcChecksum(ipheader.ToPacket()))
+
+	// my_buf構造にコピー
+	forwardPacket := ipheader.ToPacket()
+	forwardPacket = append(forwardPacket, packet[20:]...)
+
+	if route.iptype == connected { // 直接接続ネットワークの経路なら
+		// hostに直接送信
+		fmt.Printf("forward packet to %s, from %s\n", printIPAddr(ipheader.destAddr), route.netdev.name)
+		ipPacketOutputToHost(route.netdev, ipheader.destAddr, forwardPacket)
+	} else { // 直接接続ネットワークの経路ではなかったら
+		fmt.Printf("next hop is %s\n", printIPAddr(route.nexthop))
+		ipPacketOutputToNetxhop(route.nexthop, forwardPacket)
 	}
 }
 
@@ -171,7 +214,8 @@ func ipInputToOurs(inputdev *netDevice, ipheader ipHeader, packet []byte) {
 		fmt.Println("ICMP received!")
 		icmpInput(inputdev, ipheader.srcAddr, ipheader.destAddr, packet)
 	case IP_PROTOCOL_NUM_UDP:
-		return
+		fmt.Printf("udp received : %x\n", packet)
+		//return
 	case IP_PROTOCOL_NUM_TCP:
 		return
 	default:
@@ -185,10 +229,10 @@ IPパケットを直接イーサネットでホストに送信
 */
 func ipPacketOutputToHost(dev *netDevice, destAddr uint32, packet []byte) {
 	// ARPテーブルの検索
-	destMacAddr := searchArpTableEntry(destAddr)
+	destMacAddr, _ := searchArpTableEntry(destAddr)
 	if destMacAddr == [6]uint8{0, 0, 0, 0, 0, 0} {
 		// ARPエントリが無かったら
-		fmt.Printf("Trying ip output to host, but no arp record to %s\\n", printIPAddr(destAddr))
+		fmt.Printf("Trying ip output to host, but no arp record to %s\n", printIPAddr(destAddr))
 		// ARPリクエストを送信
 		sendArpRequest(dev, destAddr)
 	} else {
@@ -200,13 +244,14 @@ func ipPacketOutputToHost(dev *netDevice, destAddr uint32, packet []byte) {
 /*
 IPパケットをNextHopに送信
 */
-func ipPacketOutputToNetxhop(dev *netDevice, nextHop uint32, packet []byte) {
+func ipPacketOutputToNetxhop(nextHop uint32, packet []byte) {
 	// ARPテーブルの検索
-	destMacAddr := searchArpTableEntry(nextHop)
+	destMacAddr, dev := searchArpTableEntry(nextHop)
 	if destMacAddr == [6]uint8{0, 0, 0, 0, 0, 0} {
 		fmt.Printf("Trying ip output to next hop, but no arp record to %s\n", printIPAddr(nextHop))
 		// ルーティングテーブルのルックアップ
 		routeToNexthop := iproute.radixTreeSearch(nextHop)
+		//fmt.Printf("next hop route is from %s\n", routeToNexthop.netdev.name)
 		if routeToNexthop == (ipRouteEntry{}) || routeToNexthop.iptype != connected {
 			// next hopへの到達性が無かったら
 			fmt.Printf("Next hop %s is not reachable\n", printIPAddr(nextHop))
@@ -235,7 +280,7 @@ func ipPacketOutput(outputdev *netDevice, routeTree radixTreeNode, destAddr, src
 		ipPacketOutputToHost(outputdev, destAddr, packet)
 	} else if route.iptype == network {
 		// 直接つながっていないネットワークなら
-		ipPacketOutputToNetxhop(outputdev, destAddr, packet)
+		ipPacketOutputToNetxhop(destAddr, packet)
 	}
 }
 
@@ -271,7 +316,7 @@ func ipPacketEncapsulateOutput(inputdev *netDevice, destAddr, srcAddr uint32, pa
 
 	// ルートテーブルを検索して送信先IPのMACアドレスがなければ、
 	// ARPリクエストを生成して送信して結果を受信してから、ethernetからパケットを送る
-	destMacAddr := searchArpTableEntry(destAddr)
+	destMacAddr, _ := searchArpTableEntry(destAddr)
 	if destMacAddr != [6]uint8{0, 0, 0, 0, 0, 0} {
 		// ルートテーブルに送信するIPアドレスのMACアドレスがあれば送信
 		ethernetOutput(inputdev, destMacAddr, ipPacket, ETHER_TYPE_IP)
