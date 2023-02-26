@@ -46,7 +46,7 @@ ip netns exec router1 ethtool -K router1-router3 rx off tx off
 # router1のipv4フォワードを無効にする
 ip netns exec router1 sysctl -w net.ipv4.ip_forward=0
 
-# goでip設定するの面倒くさいので追加
+# goでip設定するのが面倒くさいので追加
 ip netns exec router1 ip addr add 192.168.1.1/24 dev router1-host1
 ip netns exec router1 ip link set router1-host1 up
 ip netns exec router1 ethtool -K router1-host1 rx off tx off
