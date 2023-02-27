@@ -1,5 +1,7 @@
 package main
 
+import "log"
+
 type natDirectionType uint8
 type natProtocolType uint8
 
@@ -43,6 +45,15 @@ type natEntryList struct {
 type natDevice struct {
 	outsideIpAddr uint32
 	natEntry      *natEntryList
+}
+
+func configureIPNat(inside netDevice, outside netDevice) {
+	if inside == (netDevice{}) || outside == (netDevice{}) ||
+		inside.ipdev == (ipDevice{}) || outside.ipdev == (ipDevice{}) {
+		log.Fatal("Failed to configure NAT")
+	}
+	// 内から外へ出るときに変換するIPアドレス設定
+	inside.ipdev.natdev.outsideIpAddr = outside.ipdev.address
 }
 
 /*

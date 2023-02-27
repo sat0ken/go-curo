@@ -62,9 +62,9 @@ func (netdev netDevice) netDevicePoll(mode string) error {
 }
 
 // インターフェイス名からデバイスを探す
-func (netdev netDevice) getnetDeviceByName(name string) netDevice {
+func getnetDeviceByName(name string) netDevice {
 	for _, dev := range netDeviceList {
-		if netdev.name == dev.name {
+		if name == dev.name {
 			return dev
 		}
 	}
