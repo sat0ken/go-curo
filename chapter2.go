@@ -13,7 +13,8 @@ var iproute radixTreeNode
 // Global変数で宣言
 var netDeviceList []netDevice
 
-func runChapter2() {
+func runChapter2(mode string) {
+
 	// 直接接続ではないhost2へのルーティングを登録する
 	routeEntryTohost2 := ipRouteEntry{
 		iptype:  network,
@@ -88,6 +89,13 @@ func runChapter2() {
 			netDeviceList = append(netDeviceList, netdev)
 		}
 	}
+
+	// chapter5のNW構成で動作させるときは、NATの設定の投入
+	if mode == "ch5" {
+		configureIPNat(getnetDeviceByName("router1-br100"), getnetDeviceByName("router1-router2"))
+	}
+
+	fmt.Printf("mode is %s start router...\n", mode)
 
 	for {
 		// epoll_waitでパケットの受信を待つ
