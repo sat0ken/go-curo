@@ -17,7 +17,7 @@ type ipDevice struct {
 	address   uint32 // デバイスのIPアドレス
 	netmask   uint32 // サブネットマスク
 	broadcast uint32 // ブロードキャストアドレス
-	natdev    *natDevice
+	natdev    natDevice
 }
 
 type ipHeader struct {

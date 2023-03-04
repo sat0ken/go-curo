@@ -92,7 +92,7 @@ func runChapter2(mode string) {
 
 	// chapter5のNW構成で動作させるときは、NATの設定の投入
 	if mode == "ch5" {
-		configureIPNat(getnetDeviceByName("router1-br100"), getnetDeviceByName("router1-router2"))
+		configureIPNat(getnetDeviceByName(netDeviceList, "router1-br100"), getnetDeviceByName(netDeviceList, "router1-router2"))
 	}
 
 	fmt.Printf("mode is %s start router...\n", mode)

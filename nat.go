@@ -1,6 +1,9 @@
 package main
 
-import "log"
+import (
+	"fmt"
+	"log"
+)
 
 type natDirectionType uint8
 type natProtocolType uint8
@@ -54,6 +57,96 @@ func configureIPNat(inside netDevice, outside netDevice) {
 	}
 	// 内から外へ出るときに変換するIPアドレス設定
 	inside.ipdev.natdev.outsideIpAddr = outside.ipdev.address
+}
+
+func dumpNatTables() {
+	fmt.Println("|-PROTO-|---------LOCAL---------|--------GLOBAL---------|")
+	for _, netdev := range netDeviceList {
+		if netdev.ipdev != (ipDevice{}) && netdev.ipdev.natdev != (natDevice{}) {
+			for i := 0; i < NAT_GLOBAL_PORT_SIZE; i++ {
+				if netdev.ipdev.natdev.natEntry.tcp[i].globalPort != 0 {
+					fmt.Printf("|  TCP  | %15s:%05d | %15s:%05d |\n",
+						netdev.ipdev.natdev.natEntry.tcp[i].localIpAddr,
+						netdev.ipdev.natdev.natEntry.tcp[i].localPort,
+						netdev.ipdev.natdev.natEntry.tcp[i].globalIpAddr,
+						netdev.ipdev.natdev.natEntry.tcp[i].globalPort)
+				}
+				if netdev.ipdev.natdev.natEntry.udp[i].globalPort != 0 {
+					fmt.Printf("|  UDP  | %15s:%05d | %15s:%05d |\n",
+						netdev.ipdev.natdev.natEntry.udp[i].localIpAddr,
+						netdev.ipdev.natdev.natEntry.udp[i].localPort,
+						netdev.ipdev.natdev.natEntry.udp[i].globalIpAddr,
+						netdev.ipdev.natdev.natEntry.udp[i].globalPort)
+				}
+			}
+			for i := 0; i < NAT_ICMP_ID_SIZE; i++ {
+				if netdev.ipdev.natdev.natEntry.icmp[i].localIpAddr != 0 {
+					fmt.Printf("|  UDP  | %15s:%05d | %15s:%05d |\n",
+						netdev.ipdev.natdev.natEntry.icmp[i].localIpAddr,
+						netdev.ipdev.natdev.natEntry.icmp[i].localPort,
+						netdev.ipdev.natdev.natEntry.icmp[i].globalIpAddr,
+						netdev.ipdev.natdev.natEntry.icmp[i].globalPort)
+				}
+			}
+		}
+	}
+	fmt.Println("|-------|-----------------------|-----------------------|")
+}
+
+/*
+NATのアドレス変換を実行する
+*/
+func natExec(ipheader ipHeader, natPacket natPacketHeader, natdevice natDevice, proto natProtocolType, direction natDirectionType) error {
+	var icmpmessage icmpMessage
+	var udpheader udpHeader
+	var tcpheader tcpHeader
+	var srcPort, destPort uint16
+
+	// プロトコルごとに型を変換
+	switch proto {
+	case icmp:
+		icmpmessage = natPacket.packet.(icmpMessage)
+	case udp:
+		udpheader = natPacket.packet.(udpHeader)
+		srcPort = udpheader.srcPort
+		destPort = udpheader.destPort
+	case tcp:
+		tcpheader = natPacket.packet.(tcpHeader)
+		srcPort = tcpheader.srcPort
+		destPort = tcpheader.destPort
+	}
+
+	// ICMPだったら、クエリーパケットのみNATする
+	if proto == icmp && icmpmessage.icmpHeader.icmpType != ICMP_TYPE_ECHO_REQUEST &&
+		icmpmessage.icmpHeader.icmpType != ICMP_TYPE_ECHO_REPLY {
+		return fmt.Errorf("ICMPはクエリーパケットのみNATします")
+	}
+
+	var entry natEntry
+	if direction == incoming { // NATの外から内への通信時
+		if proto == icmp { // ICMPの場合はIDを用いる
+			entry = natdevice.natEntry.getNatEntryByGlobal(icmp, ipheader.destAddr, icmpmessage.icmpEcho.identify)
+		} else { // UDPとTCPの時はポート番号
+			entry = natdevice.natEntry.getNatEntryByLocal(proto, ipheader.destAddr, destPort)
+		}
+		// NATエントリが登録されていない場合、エラーを返す
+		if entry == (natEntry{}) {
+			return fmt.Errorf("No nat entry")
+		}
+	} else { // NATの内から外への通信時
+		// ICMPパケット
+		if proto == icmp {
+			entry = natdevice.natEntry.getNatEntryByLocal(icmp, ipheader.srcAddr, icmpmessage.icmpEcho.identify)
+		} else {
+			entry = natdevice.natEntry.getNatEntryByLocal(proto, ipheader.srcAddr, srcPort)
+		}
+		if entry == (natEntry{}) {
+			// NATエントリがなかったらエントリ作成
+			natdevice.natEntry.createNatEntry(proto)
+		}
+	}
+	// Todo: チェックサムの計算
+	return nil
 }
 
 /*
