@@ -209,6 +209,14 @@ func ipInput(inputdev *netDevice, packet []byte) {
 https://github.com/kametan0730/interface_2022_11/blob/master/chapter2/ip.cpp#L26
 */
 func ipInputToOurs(inputdev *netDevice, ipheader ipHeader, packet []byte) {
+	// NATの外側から内側への通信か判断
+	for _, dev := range netDeviceList {
+		if dev.ipdev != (ipDevice{}) && dev.ipdev.natdev != (natDevice{}) &&
+			dev.ipdev.natdev.outsideIpAddr == ipheader.destAddr {
+			// 送信先のIPがNATの外側のIPなら以下処理を実行
+
+		}
+	}
 	// 上位プロトコルの処理に移行
 	switch ipheader.protocol {
 	case IP_PROTOCOL_NUM_ICMP:

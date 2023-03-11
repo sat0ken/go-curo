@@ -96,7 +96,7 @@ func dumpNatTables() {
 /*
 NATのアドレス変換を実行する
 */
-func natExec(ipheader ipHeader, natPacket natPacketHeader, natdevice natDevice, proto natProtocolType, direction natDirectionType) error {
+func execNat(ipheader ipHeader, natPacket natPacketHeader, natdevice natDevice, proto natProtocolType, direction natDirectionType) error {
 	var icmpmessage icmpMessage
 	var udpheader udpHeader
 	var tcpheader tcpHeader
@@ -142,10 +142,57 @@ func natExec(ipheader ipHeader, natPacket natPacketHeader, natdevice natDevice, 
 		}
 		if entry == (natEntry{}) {
 			// NATエントリがなかったらエントリ作成
-			natdevice.natEntry.createNatEntry(proto)
+			entry = natdevice.natEntry.createNatEntry(proto)
 		}
 	}
-	// Todo: チェックサムの計算
+
+	var checksum uint32
+	if proto == icmp {
+		checksum = uint32(icmpmessage.icmpHeader.checksum)
+		checksum = ^checksum
+		checksum -= uint32(icmpmessage.icmpEcho.identify)
+		if direction == incoming {
+			checksum += uint32(entry.localPort)
+		} else {
+			checksum += uint32(entry.globalPort)
+		}
+	} else {
+		if proto == udp {
+			checksum = uint32(udpheader.checksum)
+		} else {
+			checksum = uint32(tcpheader.checksum)
+		}
+		checksum = ^checksum
+		// checksumの差分の計算
+		if direction == incoming {
+			checksum -= ipheader.destAddr & 0xffff
+			checksum -= ipheader.destAddr >> 16
+			checksum -= uint32(destPort)
+			checksum += entry.localIpAddr & 0xffff
+			checksum += entry.localIpAddr >> 16
+			checksum += uint32(entry.localPort)
+		} else {
+			checksum -= ipheader.srcAddr & 0xffff
+			checksum -= ipheader.srcAddr >> 16
+			checksum -= uint32(srcPort)
+			checksum += natdevice.outsideIpAddr & 0xffff
+			checksum += natdevice.outsideIpAddr >> 16
+			checksum += uint32(entry.globalPort)
+		}
+	}
+	checksum = ^checksum
+	if checksum > 0xffff {
+		checksum = (checksum & 0xffff) + (checksum >> 16)
+	}
+
+	// 計算し直したchecksumをパケットにつけ直す
+	if proto == icmp {
+		icmpmessage.icmpHeader.checksum = uint16(checksum)
+	} else if proto == udp {
+		udpheader.checksum = uint16(checksum)
+	} else {
+		tcpheader.checksum = uint16(checksum)
+	}
 	return nil
 }
 
@@ -212,7 +259,7 @@ func (entry *natEntryList) getNatEntryByLocal(protoType natProtocolType, ipaddr 
 /*
 空いてるポートを探し、NATエントリを作成する
 */
-func (entry *natEntryList) createNatEntry(protoType natProtocolType) {
+func (entry *natEntryList) createNatEntry(protoType natProtocolType) natEntry {
 	switch protoType {
 	case udp:
 		// udpの場合
@@ -220,7 +267,7 @@ func (entry *natEntryList) createNatEntry(protoType natProtocolType) {
 			if entry.udp[i].globalIpAddr == 0 {
 				// 空いてるエントリが見つかったら、グローバルポートを設定してエントリを返す
 				entry.udp[i].globalPort = uint16(NAT_GLOBAL_PORT_MIN + i)
-				break
+				return entry.udp[i]
 			}
 		}
 	case tcp:
@@ -229,7 +276,7 @@ func (entry *natEntryList) createNatEntry(protoType natProtocolType) {
 			if entry.tcp[i].globalIpAddr == 0 {
 				// 空いてるエントリが見つかったら、グローバルポートを設定してエントリを返す
 				entry.tcp[i].globalPort = uint16(NAT_GLOBAL_PORT_MIN + i)
-				break
+				return entry.tcp[i]
 			}
 		}
 	case icmp:
@@ -238,8 +285,10 @@ func (entry *natEntryList) createNatEntry(protoType natProtocolType) {
 			if entry.icmp[i].globalIpAddr == 0 {
 				// 空いてるエントリが見つかったら、グローバルポートを設定してエントリを返す
 				entry.icmp[i].globalPort = uint16(i)
-				break
+				return entry.icmp[i]
 			}
 		}
 	}
+	// 空いているエントリがなかったら
+	return natEntry{}
 }
