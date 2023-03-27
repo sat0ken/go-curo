@@ -2,7 +2,7 @@ package main
 
 import "fmt"
 
-func main() {
+func _() {
 	// synパケット
 	sum := 0xf903
 	ocsum := sum ^ 0xffff
@@ -13,7 +13,7 @@ func main() {
 	fmt.Printf("ocsum^0xffff is %x\n", ocsum^0xffff)
 }
 
-func syn() {
+func main() {
 	// synパケット
 	sum := 0x6a93
 	ocsum := sum ^ 0xffff

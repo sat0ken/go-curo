@@ -214,7 +214,30 @@ func ipInputToOurs(inputdev *netDevice, ipheader ipHeader, packet []byte) {
 		if dev.ipdev != (ipDevice{}) && dev.ipdev.natdev != (natDevice{}) &&
 			dev.ipdev.natdev.outsideIpAddr == ipheader.destAddr {
 			// 送信先のIPがNATの外側のIPなら以下処理を実行
-
+			// NATの戻りのパケットをDNATする
+			natExecuted := false
+			switch ipheader.protocol {
+			case IP_PROTOCOL_NUM_UDP:
+				err := natExec(ipheader, natPacketHeader{packet: packet}, inputdev.ipdev.natdev, udp, incoming)
+				if err != nil {
+					natExecuted = true
+				}
+			case IP_PROTOCOL_NUM_TCP:
+				err := natExec(ipheader, natPacketHeader{packet: packet}, inputdev.ipdev.natdev, tcp, incoming)
+				if err != nil {
+					natExecuted = true
+				}
+			case IP_PROTOCOL_NUM_ICMP:
+				err := natExec(ipheader, natPacketHeader{packet: packet}, inputdev.ipdev.natdev, icmp, incoming)
+				if err != nil {
+					natExecuted = true
+				}
+			}
+			if natExecuted {
+				// Todo: これでいいんだっけ？
+				ipPacketOutput(&dev, iproute, ipheader.destAddr, ipheader.srcAddr, packet)
+				return
+			}
 		}
 	}
 	// 上位プロトコルの処理に移行

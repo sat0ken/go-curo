@@ -96,7 +96,7 @@ func dumpNatTables() {
 /*
 NATのアドレス変換を実行する
 */
-func execNat(ipheader ipHeader, natPacket natPacketHeader, natdevice natDevice, proto natProtocolType, direction natDirectionType) error {
+func natExec(ipheader ipHeader, natPacket natPacketHeader, natdevice natDevice, proto natProtocolType, direction natDirectionType) error {
 	var icmpmessage icmpMessage
 	var udpheader udpHeader
 	var tcpheader tcpHeader
@@ -143,6 +143,21 @@ func execNat(ipheader ipHeader, natPacket natPacketHeader, natdevice natDevice, 
 		if entry == (natEntry{}) {
 			// NATエントリがなかったらエントリ作成
 			entry = natdevice.natEntry.createNatEntry(proto)
+			if entry == (natEntry{}) {
+				return fmt.Errorf("NAT table is full")
+			}
+			fmt.Printf("Created new nat table entry global port %d\n", entry.globalPort)
+			entry.globalIpAddr = natdevice.outsideIpAddr
+			entry.localIpAddr = ipheader.srcAddr
+			if proto == icmp {
+				entry.localPort = icmpmessage.icmpEcho.identify
+			} else {
+				if proto == udp {
+					entry.localPort = udpheader.srcPort
+				} else {
+					entry.localPort = tcpheader.srcPort
+				}
+			}
 		}
 	}
 
@@ -162,36 +177,25 @@ func execNat(ipheader ipHeader, natPacket natPacketHeader, natdevice natDevice, 
 		} else {
 			checksum = uint32(tcpheader.checksum)
 		}
-		checksum = ^checksum
-		// checksumの差分の計算
+		// 反転前の1の補数和に戻す
+		checksum = checksum ^ 0xffff
+		// Todo checksumの差分の計算
 		if direction == incoming {
-			checksum -= ipheader.destAddr & 0xffff
-			checksum -= ipheader.destAddr >> 16
-			checksum -= uint32(destPort)
-			checksum += entry.localIpAddr & 0xffff
-			checksum += entry.localIpAddr >> 16
-			checksum += uint32(entry.localPort)
+			// destinationのIPアドレスを引く
+			checksum -= (entry.globalIpAddr - entry.localIpAddr)
 		} else {
-			checksum -= ipheader.srcAddr & 0xffff
-			checksum -= ipheader.srcAddr >> 16
-			checksum -= uint32(srcPort)
-			checksum += natdevice.outsideIpAddr & 0xffff
-			checksum += natdevice.outsideIpAddr >> 16
-			checksum += uint32(entry.globalPort)
+			// sourceのIPアドレスを引く
+			checksum -= (entry.localIpAddr - entry.globalIpAddr)
 		}
-	}
-	checksum = ^checksum
-	if checksum > 0xffff {
-		checksum = (checksum & 0xffff) + (checksum >> 16)
 	}
 
 	// 計算し直したchecksumをパケットにつけ直す
 	if proto == icmp {
 		icmpmessage.icmpHeader.checksum = uint16(checksum)
 	} else if proto == udp {
-		udpheader.checksum = uint16(checksum)
+		udpheader.checksum = uint16(checksum ^ 0xffff)
 	} else {
-		tcpheader.checksum = uint16(checksum)
+		tcpheader.checksum = uint16(checksum ^ 0xffff)
 	}
 	return nil
 }
