@@ -169,6 +169,30 @@ func ipInput(inputdev *netDevice, packet []byte) {
 		}
 	}
 
+	var natPacket []byte
+	var err errort
+	// NATの内側から外側への通信
+	if inputdev.ipdev.natdev != (natDevice{}) {
+		switch ipheader.protocol {
+		case IP_PROTOCOL_NUM_UDP:
+			natPacket, err = natExec(ipheader, natPacketHeader{packet: packet}, inputdev.ipdev.natdev, udp, outgoing)
+			if err != nil {
+				return
+			}
+		case IP_PROTOCOL_NUM_TCP:
+			natPacket, err = natExec(ipheader, natPacketHeader{packet: packet}, inputdev.ipdev.natdev, tcp, outgoing)
+			if err != nil {
+				return
+			}
+		case IP_PROTOCOL_NUM_ICMP:
+			natPacket, err = natExec(ipheader, natPacketHeader{packet: packet}, inputdev.ipdev.natdev, icmp, outgoing)
+			if err != nil {
+				return
+			}
+
+		}
+	}
+
 	// 宛先IPアドレスがルータの持っているIPアドレスでない場合はフォワーディングを行う
 	route := iproute.radixTreeSearch(ipheader.destAddr) // ルーティングテーブルをルックアップ
 	if route == (ipRouteEntry{}) {
@@ -192,7 +216,11 @@ func ipInput(inputdev *netDevice, packet []byte) {
 
 	// my_buf構造にコピー
 	forwardPacket := ipheader.ToPacket()
-	forwardPacket = append(forwardPacket, packet[20:]...)
+	if inputdev.ipdev.natdev != (natDevice{}) {
+		forwardPacket = append(forwardPacket, natPacket...)
+	} else {
+		forwardPacket = append(forwardPacket, packet[20:]...)
+	}
 
 	if route.iptype == connected { // 直接接続ネットワークの経路なら
 		// hostに直接送信
@@ -236,7 +264,6 @@ func ipInputToOurs(inputdev *netDevice, ipheader ipHeader, packet []byte) {
 				}
 			}
 			if natExecuted {
-				// Todo: これでいいんだっけ？
 				ipPacketOutput(&dev, iproute, ipheader.destAddr, ipheader.srcAddr, destPacket)
 				return
 			}
