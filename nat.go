@@ -96,11 +96,12 @@ func dumpNatTables() {
 /*
 NATのアドレス変換を実行する
 */
-func natExec(ipheader ipHeader, natPacket natPacketHeader, natdevice natDevice, proto natProtocolType, direction natDirectionType) error {
+func natExec(ipheader ipHeader, natPacket natPacketHeader, natdevice natDevice, proto natProtocolType, direction natDirectionType) ([]byte, error) {
 	var icmpmessage icmpMessage
 	var udpheader udpHeader
 	var tcpheader tcpHeader
 	var srcPort, destPort uint16
+	var packet []byte
 
 	// プロトコルごとに型を変換
 	switch proto {
@@ -119,7 +120,7 @@ func natExec(ipheader ipHeader, natPacket natPacketHeader, natdevice natDevice, 
 	// ICMPだったら、クエリーパケットのみNATする
 	if proto == icmp && icmpmessage.icmpHeader.icmpType != ICMP_TYPE_ECHO_REQUEST &&
 		icmpmessage.icmpHeader.icmpType != ICMP_TYPE_ECHO_REPLY {
-		return fmt.Errorf("ICMPはクエリーパケットのみNATします")
+		return nil, fmt.Errorf("ICMPはクエリーパケットのみNATします")
 	}
 
 	var entry natEntry
@@ -131,7 +132,7 @@ func natExec(ipheader ipHeader, natPacket natPacketHeader, natdevice natDevice, 
 		}
 		// NATエントリが登録されていない場合、エラーを返す
 		if entry == (natEntry{}) {
-			return fmt.Errorf("No nat entry")
+			return nil, fmt.Errorf("No nat entry")
 		}
 	} else { // NATの内から外への通信時
 		// ICMPパケット
@@ -144,7 +145,7 @@ func natExec(ipheader ipHeader, natPacket natPacketHeader, natdevice natDevice, 
 			// NATエントリがなかったらエントリ作成
 			entry = natdevice.natEntry.createNatEntry(proto)
 			if entry == (natEntry{}) {
-				return fmt.Errorf("NAT table is full")
+				return nil, fmt.Errorf("NAT table is full")
 			}
 			fmt.Printf("Created new nat table entry global port %d\n", entry.globalPort)
 			entry.globalIpAddr = natdevice.outsideIpAddr
@@ -192,12 +193,16 @@ func natExec(ipheader ipHeader, natPacket natPacketHeader, natdevice natDevice, 
 	// 計算し直したchecksumをパケットにつけ直す
 	if proto == icmp {
 		icmpmessage.icmpHeader.checksum = uint16(checksum)
+		packet = icmpmessage.ToPacket()
 	} else if proto == udp {
 		udpheader.checksum = uint16(checksum ^ 0xffff)
+		packet = udpheader.ToPacket()
 	} else {
 		tcpheader.checksum = uint16(checksum ^ 0xffff)
+		packet = tcpheader.ToPacket()
 	}
-	return nil
+
+	return packet, nil
 }
 
 /*
