@@ -94,3 +94,19 @@ func icmpInput(inputdev *netDevice, sourceAddr, destAddr uint32, icmpPacket []by
 		ipPacketEncapsulateOutput(inputdev, sourceAddr, destAddr, icmpmsg.ToPacket(), IP_PROTOCOL_NUM_ICMP)
 	}
 }
+
+func (icmpmsg *icmpMessage) ParsePacket(icmpPacket []byte) icmpMessage {
+	return icmpMessage{
+		icmpHeader: icmpHeader{
+			icmpType: icmpPacket[0],
+			icmpCode: icmpPacket[1],
+			checksum: byteToUint16(icmpPacket[2:4]),
+		},
+		icmpEcho: icmpEcho{
+			identify:  byteToUint16(icmpPacket[4:6]),
+			sequence:  byteToUint16(icmpPacket[6:8]),
+			timestamp: icmpPacket[8:16],
+			data:      icmpPacket[16:],
+		},
+	}
+}

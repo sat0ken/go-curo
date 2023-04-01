@@ -28,7 +28,7 @@ const (
 
 type natPacketHeader struct {
 	// TCPヘッダかUDPヘッダかICMP
-	packet interface{}
+	packet []byte
 }
 type natEntry struct {
 	globalIpAddr uint32
@@ -102,17 +102,19 @@ func natExec(ipheader ipHeader, natPacket natPacketHeader, natdevice natDevice, 
 	var tcpheader tcpHeader
 	var srcPort, destPort uint16
 	var packet []byte
+	var checksum uint32
+	var ipchecksum uint32
 
 	// プロトコルごとに型を変換
 	switch proto {
 	case icmp:
-		icmpmessage = natPacket.packet.(icmpMessage)
+		icmpmessage = icmpmessage.ParsePacket(natPacket.packet)
 	case udp:
-		udpheader = natPacket.packet.(udpHeader)
+		udpheader = udpheader.ParsePacket(natPacket.packet)
 		srcPort = udpheader.srcPort
 		destPort = udpheader.destPort
 	case tcp:
-		tcpheader = natPacket.packet.(tcpHeader)
+		tcpheader = tcpheader.ParsePacket(natPacket.packet)
 		srcPort = tcpheader.srcPort
 		destPort = tcpheader.destPort
 	}
@@ -162,7 +164,6 @@ func natExec(ipheader ipHeader, natPacket natPacketHeader, natdevice natDevice, 
 		}
 	}
 
-	var checksum uint32
 	if proto == icmp {
 		checksum = uint32(icmpmessage.icmpHeader.checksum)
 		checksum = ^checksum
@@ -180,13 +181,15 @@ func natExec(ipheader ipHeader, natPacket natPacketHeader, natdevice natDevice, 
 		}
 		// 反転前の1の補数和に戻す
 		checksum = checksum ^ 0xffff
-		// Todo checksumの差分の計算
+		ipchecksum = uint32(ipheader.headerChecksum ^ 0xffff)
 		if direction == incoming {
 			// destinationのIPアドレスを引く
 			checksum -= (entry.globalIpAddr - entry.localIpAddr)
+			ipchecksum -= (entry.globalIpAddr - entry.localIpAddr)
 		} else {
 			// sourceのIPアドレスを引く
 			checksum -= (entry.localIpAddr - entry.globalIpAddr)
+			ipchecksum -= (entry.localIpAddr - entry.globalIpAddr)
 		}
 	}
 

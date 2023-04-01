@@ -170,26 +170,28 @@ func ipInput(inputdev *netDevice, packet []byte) {
 	}
 
 	var natPacket []byte
-	var err errort
+	var err error
 	// NATの内側から外側への通信
 	if inputdev.ipdev.natdev != (natDevice{}) {
 		switch ipheader.protocol {
 		case IP_PROTOCOL_NUM_UDP:
-			natPacket, err = natExec(ipheader, natPacketHeader{packet: packet}, inputdev.ipdev.natdev, udp, outgoing)
+			natPacket, err = natExec(ipheader, natPacketHeader{packet: packet[20:]}, inputdev.ipdev.natdev, udp, outgoing)
 			if err != nil {
+				// NATできないパケットはドロップ
 				return
 			}
 		case IP_PROTOCOL_NUM_TCP:
-			natPacket, err = natExec(ipheader, natPacketHeader{packet: packet}, inputdev.ipdev.natdev, tcp, outgoing)
+			natPacket, err = natExec(ipheader, natPacketHeader{packet: packet[20:]}, inputdev.ipdev.natdev, tcp, outgoing)
 			if err != nil {
+				// NATできないパケットはドロップ
 				return
 			}
 		case IP_PROTOCOL_NUM_ICMP:
-			natPacket, err = natExec(ipheader, natPacketHeader{packet: packet}, inputdev.ipdev.natdev, icmp, outgoing)
+			natPacket, err = natExec(ipheader, natPacketHeader{packet: packet[20:]}, inputdev.ipdev.natdev, icmp, outgoing)
 			if err != nil {
+				// NATできないパケットはドロップ
 				return
 			}
-
 		}
 	}
 
@@ -216,6 +218,7 @@ func ipInput(inputdev *netDevice, packet []byte) {
 
 	// my_buf構造にコピー
 	forwardPacket := ipheader.ToPacket()
+	// NATの内側から外側への通信
 	if inputdev.ipdev.natdev != (natDevice{}) {
 		forwardPacket = append(forwardPacket, natPacket...)
 	} else {
