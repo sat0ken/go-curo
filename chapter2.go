@@ -11,7 +11,7 @@ import (
 var iproute radixTreeNode
 
 // Global変数で宣言
-var netDeviceList []netDevice
+var netDeviceList []*netDevice
 
 func runChapter2(mode string) {
 
@@ -86,13 +86,12 @@ func runChapter2(mode string) {
 
 			// netDevice構造体を作成
 			// net_deviceの連結リストに連結させる
-			netDeviceList = append(netDeviceList, netdev)
+			netDeviceList = append(netDeviceList, &netdev)
 		}
 	}
-
 	// chapter5のNW構成で動作させるときは、NATの設定の投入
 	if mode == "ch5" {
-		configureIPNat(getnetDeviceByName(netDeviceList, "router1-br100"), getnetDeviceByName(netDeviceList, "router1-router2"))
+		configureIPNat("router1-br0", getnetDeviceByName("router1-router2").ipdev.address)
 	}
 
 	fmt.Printf("mode is %s start router...\n", mode)
@@ -108,7 +107,7 @@ func runChapter2(mode string) {
 			for _, netdev := range netDeviceList {
 				// イベントがあったソケットとマッチしたらパケットを読み込む処理を実行
 				if events[i].Fd == int32(netdev.socket) {
-					err := netdev.netDevicePoll("chapter2")
+					err := netdev.netDevicePoll(mode)
 					if err != nil {
 						log.Fatal(err)
 					}
