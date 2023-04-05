@@ -100,7 +100,6 @@ func arpInput(netdev *netDevice, packet []byte) error {
 
 /*
 ARPテーブルにエントリの追加と更新
-Todo: C++わからないから配列に入れてるけどあってる？？
 https://github.com/kametan0730/interface_2022_11/blob/master/chapter2/arp.cpp#L23
 */
 func addArpTableEntry(netdev *netDevice, ipaddr uint32, macaddr [6]uint8) {
