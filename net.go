@@ -40,7 +40,7 @@ func (netdev netDevice) netDeviceTransmit(data []byte) error {
 }
 
 // ネットデバイスの受信処理
-func (netdev netDevice) netDevicePoll(mode string) error {
+func (netdev *netDevice) netDevicePoll(mode string) error {
 	recvbuffer := make([]byte, 1500)
 	n, _, err := syscall.Recvfrom(netdev.socket, recvbuffer, 0)
 	if err != nil {
@@ -50,23 +50,22 @@ func (netdev netDevice) netDevicePoll(mode string) error {
 			return fmt.Errorf("recv err, n is %d, device is %s, err is %s", n, netdev.name, err)
 		}
 	}
-
 	// Chapter1では受信したパケットをprintするだけ
-	if mode == "chapter1" {
+	if mode == "ch1" {
 		fmt.Printf("Received %d bytes from %s: %x\n", n, netdev.name, recvbuffer[:n])
 	} else {
-		ethernetInput(&netdev, recvbuffer[:n])
+		ethernetInput(netdev, recvbuffer[:n])
 	}
 
 	return nil
 }
 
 // インターフェイス名からデバイスを探す
-func getnetDeviceByName(devlist []netDevice, name string) netDevice {
-	for _, dev := range devlist {
+func getnetDeviceByName(name string) *netDevice {
+	for _, dev := range netDeviceList {
 		if name == dev.name {
 			return dev
 		}
 	}
-	return netDevice{}
+	return &netDevice{}
 }
