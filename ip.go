@@ -132,9 +132,15 @@ func ipInput(inputdev *netDevice, packet []byte) {
 		srcAddr:        byteToUint32(packet[12:16]),
 		destAddr:       byteToUint32(packet[16:20]),
 	}
-	// fmt.Printf("Input dev name is %s, ip addr is %s\n", inputdev.name, printIPAddr(inputdev.ipdev.address))
-	fmt.Printf("Received IP packet type %d from %s to %s\n", ipheader.protocol,
+
+	fmt.Printf("Received IP in %s, packet type %d from %s to %s\n", inputdev.name, ipheader.protocol,
 		printIPAddr(ipheader.srcAddr), printIPAddr(ipheader.destAddr))
+
+	// めんどうだからARP追加しておく
+	macaddr, _ := searchArpTableEntry(ipheader.srcAddr)
+	if macaddr == [6]uint8{} {
+		addArpTableEntry(inputdev, ipheader.srcAddr, inputdev.etheHeader.srcAddr)
+	}
 
 	// IPバージョンが4でなければドロップ
 	// Todo: IPv6の実装
@@ -156,7 +162,7 @@ func ipInput(inputdev *netDevice, packet []byte) {
 	// 宛先アドレスがブロードキャストアドレスか受信したNICインターフェイスのIPアドレスの場合
 	if ipheader.destAddr == IP_ADDRESS_LIMITED_BROADCAST || inputdev.ipdev.address == ipheader.destAddr {
 		// 自分宛の通信として処理
-		ipInputToOurs(inputdev, ipheader, packet[20:])
+		ipInputToOurs(inputdev, &ipheader, packet[20:])
 	}
 
 	// 宛先IPアドレスをルータが持ってるか調べる
@@ -165,33 +171,38 @@ func ipInput(inputdev *netDevice, packet []byte) {
 		// 宛先IPアドレスがルータの持っているIPアドレス or ディレクティッド・ブロードキャストアドレスの時の処理
 		if dev.ipdev.address == ipheader.destAddr || dev.ipdev.broadcast == ipheader.destAddr {
 			// 自分宛の通信として処理
-			ipInputToOurs(inputdev, ipheader, packet[20:])
+			ipInputToOurs(inputdev, &ipheader, packet[20:])
 		}
 	}
 
 	var natPacket []byte
-	var err error
 	// NATの内側から外側への通信
 	if inputdev.ipdev.natdev != (natDevice{}) {
+		var err error
 		switch ipheader.protocol {
 		case IP_PROTOCOL_NUM_UDP:
-			natPacket, err = natExec(ipheader, natPacketHeader{packet: packet[20:]}, inputdev.ipdev.natdev, udp, outgoing)
+			natPacket, err = natExec(&ipheader, natPacketHeader{packet: packet[20:]}, inputdev.ipdev.natdev, udp, outgoing)
 			if err != nil {
 				// NATできないパケットはドロップ
 				return
 			}
 		case IP_PROTOCOL_NUM_TCP:
-			natPacket, err = natExec(ipheader, natPacketHeader{packet: packet[20:]}, inputdev.ipdev.natdev, tcp, outgoing)
+			fmt.Printf("before nat source ip is %s\n", printIPAddr(ipheader.srcAddr))
+			natPacket, err = natExec(&ipheader, natPacketHeader{packet: packet[20:]}, inputdev.ipdev.natdev, tcp, outgoing)
 			if err != nil {
 				// NATできないパケットはドロップ
 				return
 			}
+			fmt.Printf("tcp nat is go!!, natPacket len is %d, is %x\n", len(natPacket), natPacket)
+			fmt.Printf("after nat source ip is %s\n", printIPAddr(ipheader.srcAddr))
 		case IP_PROTOCOL_NUM_ICMP:
-			natPacket, err = natExec(ipheader, natPacketHeader{packet: packet[20:]}, inputdev.ipdev.natdev, icmp, outgoing)
+			natPacket, err = natExec(&ipheader, natPacketHeader{packet: packet[20:]}, inputdev.ipdev.natdev, icmp, outgoing)
 			if err != nil {
 				// NATできないパケットはドロップ
+				fmt.Printf("nat icmp packet err is %s\n", err)
 				return
 			}
+			fmt.Printf("nat icmp packet is %x\n", natPacket)
 		}
 	}
 
@@ -231,6 +242,7 @@ func ipInput(inputdev *netDevice, packet []byte) {
 		ipPacketOutputToHost(route.netdev, ipheader.destAddr, forwardPacket)
 	} else { // 直接接続ネットワークの経路ではなかったら
 		fmt.Printf("next hop is %s\n", printIPAddr(route.nexthop))
+		fmt.Printf("forward packet is %x : %x\n", forwardPacket[0:20], natPacket)
 		ipPacketOutputToNetxhop(route.nexthop, forwardPacket)
 	}
 }
@@ -239,7 +251,7 @@ func ipInput(inputdev *netDevice, packet []byte) {
 自分宛のIPパケットの処理
 https://github.com/kametan0730/interface_2022_11/blob/master/chapter2/ip.cpp#L26
 */
-func ipInputToOurs(inputdev *netDevice, ipheader ipHeader, packet []byte) {
+func ipInputToOurs(inputdev *netDevice, ipheader *ipHeader, packet []byte) {
 	// NATの外側から内側への通信か判断
 	for _, dev := range netDeviceList {
 		if dev.ipdev != (ipDevice{}) && dev.ipdev.natdev != (natDevice{}) &&
@@ -251,23 +263,25 @@ func ipInputToOurs(inputdev *netDevice, ipheader ipHeader, packet []byte) {
 			var err error
 			switch ipheader.protocol {
 			case IP_PROTOCOL_NUM_UDP:
-				destPacket, err = natExec(ipheader, natPacketHeader{packet: packet}, inputdev.ipdev.natdev, udp, incoming)
+				destPacket, err = natExec(ipheader, natPacketHeader{packet: packet}, dev.ipdev.natdev, udp, incoming)
 				if err != nil {
 					natExecuted = true
 				}
 			case IP_PROTOCOL_NUM_TCP:
-				destPacket, err = natExec(ipheader, natPacketHeader{packet: packet}, inputdev.ipdev.natdev, tcp, incoming)
+				destPacket, err = natExec(ipheader, natPacketHeader{packet: packet}, dev.ipdev.natdev, tcp, incoming)
+				fmt.Printf("To dest is %s\n", printIPAddr(ipheader.destAddr))
 				if err != nil {
 					natExecuted = true
 				}
+
 			case IP_PROTOCOL_NUM_ICMP:
-				destPacket, err = natExec(ipheader, natPacketHeader{packet: packet}, inputdev.ipdev.natdev, icmp, incoming)
+				destPacket, err = natExec(ipheader, natPacketHeader{packet: packet}, dev.ipdev.natdev, icmp, incoming)
 				if err != nil {
 					natExecuted = true
 				}
 			}
 			if natExecuted {
-				ipPacketOutput(&dev, iproute, ipheader.destAddr, ipheader.srcAddr, destPacket)
+				ipPacketOutput(dev, iproute, ipheader.destAddr, ipheader.srcAddr, destPacket)
 				return
 			}
 		}
