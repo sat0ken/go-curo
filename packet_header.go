@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/binary"
+	"fmt"
 )
 
 type udpHeader struct {
@@ -22,6 +23,8 @@ type tcpHeader struct {
 	window     uint16
 	checksum   uint16
 	urgPointer uint16
+	options    []byte
+	tcpdata    []byte
 }
 
 func (udpheder *udpHeader) ToPacket() []byte {
@@ -32,10 +35,28 @@ func (udpheder *udpHeader) ToPacket() []byte {
 }
 
 func (tcpheader *tcpHeader) ToPacket() []byte {
-	buf := new(bytes.Buffer)
-	binary.Write(buf, binary.BigEndian, tcpheader)
+	var b bytes.Buffer
 
-	return buf.Bytes()
+	b.Write(uint16ToByte(tcpheader.srcPort))
+	b.Write(uint16ToByte(tcpheader.destPort))
+	b.Write(uint32ToByte(tcpheader.seq))
+	b.Write(uint32ToByte(tcpheader.ackseq))
+	b.Write([]byte{tcpheader.offset})
+	b.Write([]byte{tcpheader.tcpflag})
+	b.Write(uint16ToByte(tcpheader.window))
+	b.Write(uint16ToByte(tcpheader.checksum))
+	b.Write(uint16ToByte(tcpheader.urgPointer))
+
+	// TCPオプションがあれば
+	if len(tcpheader.options) != 0 {
+		b.Write(tcpheader.options)
+	}
+	// TCPデータがあれば
+	if len(tcpheader.tcpdata) != 0 {
+		b.Write(tcpheader.tcpdata)
+	}
+
+	return b.Bytes()
 }
 
 func (udpheader *udpHeader) ParsePacket(packet []byte) udpHeader {
@@ -48,7 +69,7 @@ func (udpheader *udpHeader) ParsePacket(packet []byte) udpHeader {
 }
 
 func (tcpheader *tcpHeader) ParsePacket(packet []byte) tcpHeader {
-	return tcpHeader{
+	header := tcpHeader{
 		srcPort:    byteToUint16(packet[0:2]),
 		destPort:   byteToUint16(packet[2:4]),
 		seq:        byteToUint32(packet[4:8]),
@@ -59,4 +80,16 @@ func (tcpheader *tcpHeader) ParsePacket(packet []byte) tcpHeader {
 		checksum:   byteToUint16(packet[16:18]),
 		urgPointer: byteToUint16(packet[18:20]),
 	}
+	headerLength := header.offset >> 2
+	// TCPのオプションがあれば
+	if 20 < headerLength {
+		header.options = packet[20:headerLength]
+	}
+
+	// TCPデータがあれば
+	if int(headerLength) < len(packet) {
+		header.tcpdata = packet[headerLength:]
+	}
+	fmt.Printf("tcp header is %+v\n", header)
+	return header
 }
