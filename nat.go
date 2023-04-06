@@ -112,6 +112,8 @@ func natExec(ipheader *ipHeader, natPacket natPacketHeader, natdevice natDevice,
 	var checksum uint32
 	var ipchecksum uint32
 
+	fmt.Printf("natExec src is %s, dest is %s\n", printIPAddr(ipheader.srcAddr), printIPAddr(ipheader.destAddr))
+
 	// プロトコルごとに型を変換
 	switch proto {
 	case icmp:
@@ -146,14 +148,14 @@ func natExec(ipheader *ipHeader, natPacket natPacketHeader, natdevice natDevice,
 			if entry == (&natEntry{}) {
 				return nil, fmt.Errorf("No nat entry")
 			}
-			fmt.Printf("incoming nat from %s to %s\n",
-				printIPAddr(entry.globalIpAddr), printIPAddr(entry.localIpAddr))
+			fmt.Printf("incoming nat from %s:%d to %s:%d\n",
+				printIPAddr(entry.globalIpAddr), entry.globalPort, printIPAddr(entry.localIpAddr), entry.localPort)
 		}
-
+		fmt.Printf("incoming ip header src is %s, dest is %s\n",
+			printIPAddr(ipheader.srcAddr), printIPAddr(ipheader.destAddr))
 		// IPヘッダの送信先アドレスをentryのアドレスにする
-		ipheader.srcAddr = entry.globalIpAddr
 		ipheader.destAddr = entry.localIpAddr
-		tcpheader.destPort = entry.globalPort
+		tcpheader.destPort = entry.localPort
 
 	} else { // NATの内から外への通信時
 		// ICMPパケット
@@ -207,17 +209,28 @@ func natExec(ipheader *ipHeader, natPacket natPacketHeader, natdevice natDevice,
 			checksum = uint32(udpheader.checksum)
 		} else {
 			checksum = uint32(tcpheader.checksum)
+			fmt.Printf("before tcp checksum is %x\n", checksum)
 		}
 		// 反転前の1の補数和に戻す
 		checksum = checksum ^ 0xffff
 		ipchecksum = uint32(ipheader.headerChecksum ^ 0xffff)
 		if direction == incoming {
 			// destinationのIPアドレスを引く
-			checksum -= (entry.globalIpAddr - entry.localIpAddr)
-			ipchecksum -= (entry.globalIpAddr - entry.localIpAddr)
+			checksum += (entry.localIpAddr - entry.globalIpAddr)
+			checksum += uint32(entry.localPort - entry.globalPort)
+			// 桁あふれた1の補数を足し込む
+			checksum = (checksum & 0xffff) + checksum>>16
+
+			ipchecksum += (entry.localIpAddr - entry.globalIpAddr)
+			ipheader.headerChecksum = uint16(ipchecksum ^ 0xffff)
+			fmt.Printf("incoming re calc ipchecsum is %d, %x\n", ipchecksum, uint16(ipchecksum^0xffff))
 		} else {
 			// sourceのIPアドレスを引く
 			checksum -= (entry.localIpAddr - entry.globalIpAddr)
+			checksum -= uint32(entry.localPort - entry.globalPort)
+			// 桁あふれた1の補数を足し込む
+			checksum = (checksum & 0xffff) + checksum>>16
+			fmt.Printf("after tcp checksum is %x\n", checksum)
 			ipchecksum -= (entry.localIpAddr - entry.globalIpAddr)
 		}
 	}
@@ -231,6 +244,8 @@ func natExec(ipheader *ipHeader, natPacket natPacketHeader, natdevice natDevice,
 		packet = udpheader.ToPacket()
 	} else {
 		tcpheader.checksum = uint16(checksum ^ 0xffff)
+		fmt.Printf("dest port is %d\n", tcpheader.destPort)
+		fmt.Printf("1の補数を取ったchecksum is %x\n", tcpheader.checksum)
 		fmt.Printf("nat tcp header is %+v\n", tcpheader)
 		packet = tcpheader.ToPacket()
 	}
@@ -242,24 +257,24 @@ func natExec(ipheader *ipHeader, natPacket natPacketHeader, natdevice natDevice,
 グローバルアドレスとグローバルポートからNATエントリを取得
 */
 func (entry *natEntryList) getNatEntryByGlobal(protoType natProtocolType, ipaddr uint32, port uint16) *natEntry {
-	fmt.Printf("ipaddr is %s, port is %d\n", printIPAddr(ipaddr), port)
+	fmt.Printf("getNatEntryByGlobal ipaddr is %s, port is %d\n", printIPAddr(ipaddr), port)
 	switch protoType {
 	case udp: // udpの場合
 		for _, v := range entry.udp {
-			if v != nil && v.globalIpAddr == ipaddr && v.localPort == port {
+			if v != nil && v.globalIpAddr == ipaddr && v.globalPort == port {
 				return v
 			}
 		}
 	case tcp: // tcpの場合
 		// TCPのNATテーブルをグローバルIPアドレス, ローカルポートで検索する
 		for _, v := range entry.tcp {
-			if v != nil && v.globalIpAddr == ipaddr && v.localPort == port {
+			if v != nil && v.globalIpAddr == ipaddr && v.globalPort == port {
 				return v
 			}
 		}
 	case icmp: // icmpの場合
 		for _, v := range entry.icmp {
-			if v != nil && v.globalIpAddr == ipaddr && v.localPort == port {
+			if v != nil && v.globalIpAddr == ipaddr && v.globalPort == port {
 				return v
 			}
 		}
