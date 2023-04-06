@@ -47,7 +47,7 @@ type ipRouteEntry struct {
 	nexthop uint32
 }
 
-func (ipheader ipHeader) ToPacket() (ipHeaderByte []byte) {
+func (ipheader ipHeader) ToPacket(calc bool) (ipHeaderByte []byte) {
 	var b bytes.Buffer
 
 	b.Write([]byte{ipheader.version<<4 + ipheader.headerLen})
@@ -62,12 +62,15 @@ func (ipheader ipHeader) ToPacket() (ipHeaderByte []byte) {
 	b.Write(uint32ToByte(ipheader.destAddr))
 
 	// checksumを計算する
-	ipHeaderByte = b.Bytes()
-	checksum := calcChecksum(ipHeaderByte)
-
-	// checksumをセット
-	ipHeaderByte[10] = checksum[0]
-	ipHeaderByte[11] = checksum[1]
+	if calc {
+		ipHeaderByte = b.Bytes()
+		checksum := calcChecksum(ipHeaderByte)
+		// checksumをセット
+		ipHeaderByte[10] = checksum[0]
+		ipHeaderByte[11] = checksum[1]
+	} else {
+		ipHeaderByte = b.Bytes()
+	}
 
 	return ipHeaderByte
 }
@@ -136,7 +139,7 @@ func ipInput(inputdev *netDevice, packet []byte) {
 	fmt.Printf("Received IP in %s, packet type %d from %s to %s\n", inputdev.name, ipheader.protocol,
 		printIPAddr(ipheader.srcAddr), printIPAddr(ipheader.destAddr))
 
-	// めんどうだからARP追加しておく
+	// 受信したMACアドレスがARPテーブルになければ追加しておく
 	macaddr, _ := searchArpTableEntry(ipheader.srcAddr)
 	if macaddr == [6]uint8{} {
 		addArpTableEntry(inputdev, ipheader.srcAddr, inputdev.etheHeader.srcAddr)
@@ -225,10 +228,10 @@ func ipInput(inputdev *netDevice, packet []byte) {
 
 	// IPヘッダチェックサムの再計算
 	ipheader.headerChecksum = 0
-	ipheader.headerChecksum = byteToUint16(calcChecksum(ipheader.ToPacket()))
+	ipheader.headerChecksum = byteToUint16(calcChecksum(ipheader.ToPacket(true)))
 
 	// my_buf構造にコピー
-	forwardPacket := ipheader.ToPacket()
+	forwardPacket := ipheader.ToPacket(true)
 	// NATの内側から外側への通信
 	if inputdev.ipdev.natdev != (natDevice{}) {
 		forwardPacket = append(forwardPacket, natPacket...)
@@ -265,23 +268,29 @@ func ipInputToOurs(inputdev *netDevice, ipheader *ipHeader, packet []byte) {
 			case IP_PROTOCOL_NUM_UDP:
 				destPacket, err = natExec(ipheader, natPacketHeader{packet: packet}, dev.ipdev.natdev, udp, incoming)
 				if err != nil {
-					natExecuted = true
+					return
 				}
+				natExecuted = true
 			case IP_PROTOCOL_NUM_TCP:
 				destPacket, err = natExec(ipheader, natPacketHeader{packet: packet}, dev.ipdev.natdev, tcp, incoming)
-				fmt.Printf("To dest is %s\n", printIPAddr(ipheader.destAddr))
 				if err != nil {
-					natExecuted = true
+					return
 				}
+				natExecuted = true
 
 			case IP_PROTOCOL_NUM_ICMP:
 				destPacket, err = natExec(ipheader, natPacketHeader{packet: packet}, dev.ipdev.natdev, icmp, incoming)
 				if err != nil {
-					natExecuted = true
+					return
 				}
+				natExecuted = true
 			}
 			if natExecuted {
-				ipPacketOutput(dev, iproute, ipheader.destAddr, ipheader.srcAddr, destPacket)
+				ipPacket := ipheader.ToPacket(false)
+				ipPacket = append(ipPacket, destPacket...)
+				fmt.Printf("To dest is %s, checksum is %x, packet is %x\n", printIPAddr(ipheader.destAddr),
+					ipheader.headerChecksum, ipPacket)
+				ipPacketOutput(dev, iproute, ipheader.destAddr, ipPacket)
 				return
 			}
 		}
@@ -346,7 +355,7 @@ func ipPacketOutputToNetxhop(nextHop uint32, packet []byte) {
 /*
 IPパケットを送信
 */
-func ipPacketOutput(outputdev *netDevice, routeTree radixTreeNode, destAddr, srcAddr uint32, packet []byte) {
+func ipPacketOutput(outputdev *netDevice, routeTree radixTreeNode, destAddr uint32, packet []byte) {
 	// 宛先IPアドレスへの経路を検索
 	route := routeTree.radixTreeSearch(destAddr)
 	if route == (ipRouteEntry{}) {
@@ -388,7 +397,7 @@ func ipPacketEncapsulateOutput(inputdev *netDevice, destAddr, srcAddr uint32, pa
 		destAddr:       destAddr,
 	}
 	// IPヘッダをByteにする
-	ipPacket = append(ipPacket, ipheader.ToPacket()...)
+	ipPacket = append(ipPacket, ipheader.ToPacket(true)...)
 	// payloadを追加
 	ipPacket = append(ipPacket, payload...)
 
