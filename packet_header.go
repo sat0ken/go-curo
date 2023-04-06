@@ -27,6 +27,23 @@ type tcpHeader struct {
 	tcpdata    []byte
 }
 
+type dummyHeader struct {
+	srcAddr  uint32 // 送信元IPアドレス
+	destAddr uint32 // 送信先IPアドレス
+	protocol uint16
+	length   uint16
+}
+
+func (dummyHeader *dummyHeader) ToPacket() []byte {
+	var b bytes.Buffer
+
+	b.Write(uint32ToByte(dummyHeader.srcAddr))
+	b.Write(uint32ToByte(dummyHeader.destAddr))
+	b.Write(uint16ToByte(dummyHeader.protocol))
+	b.Write(uint16ToByte(dummyHeader.length))
+	return b.Bytes()
+}
+
 func (udpheder *udpHeader) ToPacket() []byte {
 	buf := new(bytes.Buffer)
 	binary.Write(buf, binary.BigEndian, udpheder)
@@ -90,6 +107,6 @@ func (tcpheader *tcpHeader) ParsePacket(packet []byte) tcpHeader {
 	if int(headerLength) < len(packet) {
 		header.tcpdata = packet[headerLength:]
 	}
-	fmt.Printf("tcp header is %+v\n", header)
+	fmt.Printf("parsed tcp header is %+v\n", header)
 	return header
 }
