@@ -112,8 +112,6 @@ func natExec(ipheader *ipHeader, natPacket natPacketHeader, natdevice natDevice,
 	var checksum uint32
 	var ipchecksum uint32
 
-	fmt.Printf("natExec src is %s, dest is %s\n", printIPAddr(ipheader.srcAddr), printIPAddr(ipheader.destAddr))
-
 	// プロトコルごとに型を変換
 	switch proto {
 	case icmp:
@@ -159,13 +157,10 @@ func natExec(ipheader *ipHeader, natPacket natPacketHeader, natdevice natDevice,
 
 	} else { // NATの内から外への通信時
 		// ICMPパケット
-		//var entry *natEntry
 		if proto == icmp {
 			entry = natdevice.natEntry.getNatEntryByLocal(icmp, ipheader.srcAddr, icmpmessage.icmpEcho.identify)
 		} else {
 			entry = natdevice.natEntry.getNatEntryByLocal(proto, ipheader.srcAddr, srcPort)
-			fmt.Printf("163: natEntry is %+v\n", entry)
-			// dumpNatTables()
 		}
 
 		if entry.globalPort == 0 {
@@ -174,7 +169,6 @@ func natExec(ipheader *ipHeader, natPacket natPacketHeader, natdevice natDevice,
 			if entry == (&natEntry{}) {
 				return nil, fmt.Errorf("NAT table is full")
 			}
-			fmt.Printf("Created new nat table entry global port %d\n", entry.globalPort)
 			entry.globalIpAddr = natdevice.outsideIpAddr
 			entry.localIpAddr = ipheader.srcAddr
 			if proto == icmp {
@@ -209,7 +203,6 @@ func natExec(ipheader *ipHeader, natPacket natPacketHeader, natdevice natDevice,
 			checksum = uint32(udpheader.checksum)
 		} else {
 			checksum = uint32(tcpheader.checksum)
-			fmt.Printf("before tcp checksum is %x\n", checksum)
 		}
 		// 反転前の1の補数和に戻す
 		checksum = checksum ^ 0xffff
@@ -220,17 +213,14 @@ func natExec(ipheader *ipHeader, natPacket natPacketHeader, natdevice natDevice,
 			checksum += uint32(entry.localPort - entry.globalPort)
 			// 桁あふれた1の補数を足し込む
 			checksum = (checksum & 0xffff) + checksum>>16
-
 			ipchecksum += (entry.localIpAddr - entry.globalIpAddr)
 			ipheader.headerChecksum = uint16(ipchecksum ^ 0xffff)
-			fmt.Printf("incoming re calc ipchecsum is %d, %x\n", ipchecksum, uint16(ipchecksum^0xffff))
 		} else {
 			// sourceのIPアドレスを引く
 			checksum -= (entry.localIpAddr - entry.globalIpAddr)
 			checksum -= uint32(entry.localPort - entry.globalPort)
 			// 桁あふれた1の補数を足し込む
 			checksum = (checksum & 0xffff) + checksum>>16
-			fmt.Printf("after tcp checksum is %x\n", checksum)
 			ipchecksum -= (entry.localIpAddr - entry.globalIpAddr)
 		}
 	}
@@ -244,9 +234,6 @@ func natExec(ipheader *ipHeader, natPacket natPacketHeader, natdevice natDevice,
 		packet = udpheader.ToPacket()
 	} else {
 		tcpheader.checksum = uint16(checksum ^ 0xffff)
-		fmt.Printf("dest port is %d\n", tcpheader.destPort)
-		fmt.Printf("1の補数を取ったchecksum is %x\n", tcpheader.checksum)
-		fmt.Printf("nat tcp header is %+v\n", tcpheader)
 		packet = tcpheader.ToPacket()
 	}
 
