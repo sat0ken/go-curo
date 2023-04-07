@@ -136,7 +136,7 @@ func ipInput(inputdev *netDevice, packet []byte) {
 		destAddr:       byteToUint32(packet[16:20]),
 	}
 
-	fmt.Printf("Received IP in %s, packet type %d from %s to %s\n", inputdev.name, ipheader.protocol,
+	fmt.Printf("ipInput Received IP in %s, packet type %d from %s to %s\n", inputdev.name, ipheader.protocol,
 		printIPAddr(ipheader.srcAddr), printIPAddr(ipheader.destAddr))
 
 	// 受信したMACアドレスがARPテーブルになければ追加しておく
@@ -166,6 +166,7 @@ func ipInput(inputdev *netDevice, packet []byte) {
 	if ipheader.destAddr == IP_ADDRESS_LIMITED_BROADCAST || inputdev.ipdev.address == ipheader.destAddr {
 		// 自分宛の通信として処理
 		ipInputToOurs(inputdev, &ipheader, packet[20:])
+		return
 	}
 
 	// 宛先IPアドレスをルータが持ってるか調べる
@@ -175,6 +176,7 @@ func ipInput(inputdev *netDevice, packet []byte) {
 		if dev.ipdev.address == ipheader.destAddr || dev.ipdev.broadcast == ipheader.destAddr {
 			// 自分宛の通信として処理
 			ipInputToOurs(inputdev, &ipheader, packet[20:])
+			return
 		}
 	}
 
@@ -187,17 +189,16 @@ func ipInput(inputdev *netDevice, packet []byte) {
 			natPacket, err = natExec(&ipheader, natPacketHeader{packet: packet[20:]}, inputdev.ipdev.natdev, udp, outgoing)
 			if err != nil {
 				// NATできないパケットはドロップ
+				fmt.Printf("nat udp packet err is %s\n", err)
 				return
 			}
 		case IP_PROTOCOL_NUM_TCP:
-			fmt.Printf("before nat source ip is %s\n", printIPAddr(ipheader.srcAddr))
 			natPacket, err = natExec(&ipheader, natPacketHeader{packet: packet[20:]}, inputdev.ipdev.natdev, tcp, outgoing)
 			if err != nil {
 				// NATできないパケットはドロップ
+				fmt.Printf("nat tcp packet err is %s\n", err)
 				return
 			}
-			fmt.Printf("tcp nat is go!!, natPacket len is %d, is %x\n", len(natPacket), natPacket)
-			fmt.Printf("after nat source ip is %s\n", printIPAddr(ipheader.srcAddr))
 		case IP_PROTOCOL_NUM_ICMP:
 			natPacket, err = natExec(&ipheader, natPacketHeader{packet: packet[20:]}, inputdev.ipdev.natdev, icmp, outgoing)
 			if err != nil {
@@ -241,7 +242,6 @@ func ipInput(inputdev *netDevice, packet []byte) {
 
 	if route.iptype == connected { // 直接接続ネットワークの経路なら
 		// hostに直接送信
-		fmt.Printf("forward packet to %s, from %s\n", printIPAddr(ipheader.destAddr), route.netdev.name)
 		ipPacketOutputToHost(route.netdev, ipheader.destAddr, forwardPacket)
 	} else { // 直接接続ネットワークの経路ではなかったら
 		fmt.Printf("next hop is %s\n", printIPAddr(route.nexthop))
