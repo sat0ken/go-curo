@@ -115,7 +115,6 @@ func ethernetOutput(netdev *netDevice, destaddr [6]uint8, packet []byte, ethType
 	}.ToPacket()
 	// イーサネットヘッダに送信するパケットをつなげる
 	ethHeaderPacket = append(ethHeaderPacket, packet...)
-	// fmt.Printf("ethernet output packet is %x\n", ethHeaderPacket)
 	// ネットワークデバイスに送信する
 	err := netdev.netDeviceTransmit(ethHeaderPacket)
 	if err != nil {
