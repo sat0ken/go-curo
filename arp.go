@@ -91,7 +91,7 @@ func arpInput(netdev *netDevice, packet []byte) error {
 		} else {
 			// ARPリプライの受信
 			fmt.Printf("ARP Reply Packet is %+v\n", arpMsg)
-			arpReplArrives(netdev, arpMsg)
+			arpReplyArrives(netdev, arpMsg)
 		}
 	}
 
@@ -174,7 +174,7 @@ func arpRequestArrives(netdev *netDevice, arp arpIPToEthernet) {
 ARPリプライパケットの受信処理
 https://github.com/kametan0730/interface_2022_11/blob/master/chapter2/arp.cpp#L213
 */
-func arpReplArrives(netdev *netDevice, arp arpIPToEthernet) {
+func arpReplyArrives(netdev *netDevice, arp arpIPToEthernet) {
 	// IPアドレスが設定されているデバイスからの受信だったら
 	if netdev.ipdev.address != 00000000 {
 		fmt.Printf("Added arp table entry by arp reply (%s => %s)\n", printIPAddr(arp.senderIPAddr), printMacAddr(arp.senderHardwareAddr))
