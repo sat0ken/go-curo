@@ -42,7 +42,7 @@ type icmpMessage struct {
 	icmpTimeExceeded           icmpTimeExceeded
 }
 
-func (icmpmsg icmpMessage) ToPacket() (icmpPacket []byte) {
+func (icmpmsg icmpMessage) ReplyPacket() (icmpPacket []byte) {
 	var b bytes.Buffer
 	// ICMPヘッダ
 	b.Write([]byte{ICMP_TYPE_ECHO_REPLY})
@@ -91,7 +91,7 @@ func icmpInput(inputdev *netDevice, sourceAddr, destAddr uint32, icmpPacket []by
 		fmt.Println("ICMP ECHO REPLY is received")
 	case ICMP_TYPE_ECHO_REQUEST:
 		fmt.Println("ICMP ECHO REQUEST is received, Create Reply Packet")
-		ipPacketEncapsulateOutput(inputdev, sourceAddr, destAddr, icmpmsg.ToPacket(), IP_PROTOCOL_NUM_ICMP)
+		ipPacketEncapsulateOutput(inputdev, sourceAddr, destAddr, icmpmsg.ReplyPacket(), IP_PROTOCOL_NUM_ICMP)
 	}
 }
 
