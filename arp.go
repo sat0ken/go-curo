@@ -53,10 +53,11 @@ func (arpmsg arpIPToEthernet) ToPacket() []byte {
 ARPパケットの受信処理
 https://github.com/kametan0730/interface_2022_11/blob/master/chapter2/arp.cpp#L139
 */
-func arpInput(netdev *netDevice, packet []byte) error {
+func arpInput(netdev *netDevice, packet []byte) {
 	// ARPパケットの規定より短かったら
 	if len(packet) < 28 {
-		return fmt.Errorf("received ARP Packet is too short")
+		fmt.Printf("received ARP Packet is too short")
+		return
 	}
 
 	// 構造体にセット
@@ -76,11 +77,13 @@ func arpInput(netdev *netDevice, packet []byte) error {
 	case ETHER_TYPE_IP:
 
 		if arpMsg.hardwareLen != ETHERNET_ADDRES_LEN {
-			return fmt.Errorf("Illegal hardware address length")
+			fmt.Println("Illegal hardware address length")
+			return
 		}
 
 		if arpMsg.protocolLen != IP_ADDRESS_LEN {
-			return fmt.Errorf("Illegal protocol address length")
+			fmt.Println("Illegal protocol address length")
+			return
 		}
 
 		// オペレーションコードによって分岐
@@ -94,8 +97,6 @@ func arpInput(netdev *netDevice, packet []byte) error {
 			arpReplyArrives(netdev, arpMsg)
 		}
 	}
-
-	return nil
 }
 
 /*
@@ -151,7 +152,7 @@ https://github.com/kametan0730/interface_2022_11/blob/master/chapter2/arp.cpp#L1
 func arpRequestArrives(netdev *netDevice, arp arpIPToEthernet) {
 	// IPアドレスが設定されているデバイスからの受信かつ要求されているアドレスが自分の物だったら
 	if netdev.ipdev.address != 00000000 && netdev.ipdev.address == arp.targetIPAddr {
-		fmt.Printf("Sending arp reply via %s\n", printIPAddr(arp.targetIPAddr))
+		fmt.Printf("Sending arp reply to %s\n", printIPAddr(arp.targetIPAddr))
 		// APRリプライのパケットを作成
 		arpPacket := arpIPToEthernet{
 			hardwareType:        ARP_HTYPE_ETHERNET,
