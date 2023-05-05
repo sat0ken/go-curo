@@ -14,10 +14,10 @@ const IP_PROTOCOL_NUM_TCP uint8 = 0x06
 const IP_PROTOCOL_NUM_UDP uint8 = 0x11
 
 type ipDevice struct {
-	address   uint32 // デバイスのIPアドレス
-	netmask   uint32 // サブネットマスク
-	broadcast uint32 // ブロードキャストアドレス
-	natdev    natDevice
+	address   uint32    // デバイスのIPアドレス
+	netmask   uint32    // サブネットマスク
+	broadcast uint32    // ブロードキャストアドレス
+	natdev    natDevice // 5章で追加
 }
 
 type ipHeader struct {
@@ -121,7 +121,7 @@ func ipInput(inputdev *netDevice, packet []byte) {
 		fmt.Printf("Received IP packet too short from %s\n", inputdev.name)
 		return
 	}
-	// 送られてきたバッファをキャストして扱う
+	// 受信したIPパケットをipHeader構造体にセットする
 	ipheader := ipHeader{
 		version:        packet[0] >> 4,
 		headerLen:      packet[0] << 5 >> 5,
@@ -180,6 +180,7 @@ func ipInput(inputdev *netDevice, packet []byte) {
 		}
 	}
 
+	// 5章で追加
 	var natPacket []byte
 	// NATの内側から外側への通信
 	if inputdev.ipdev.natdev != (natDevice{}) {
@@ -199,17 +200,10 @@ func ipInput(inputdev *netDevice, packet []byte) {
 				fmt.Printf("nat tcp packet err is %s\n", err)
 				return
 			}
-		case IP_PROTOCOL_NUM_ICMP:
-			natPacket, err = natExec(&ipheader, natPacketHeader{packet: packet[20:]}, inputdev.ipdev.natdev, icmp, outgoing)
-			if err != nil {
-				// NATできないパケットはドロップ
-				fmt.Printf("nat icmp packet err is %s\n", err)
-				return
-			}
-			fmt.Printf("nat icmp packet is %x\n", natPacket)
 		}
 	}
 
+	// 以下は4章で追加
 	// 宛先IPアドレスがルータの持っているIPアドレスでない場合はフォワーディングを行う
 	route := iproute.radixTreeSearch(ipheader.destAddr) // ルーティングテーブルをルックアップ
 	if route == (ipRouteEntry{}) {
@@ -255,6 +249,7 @@ func ipInput(inputdev *netDevice, packet []byte) {
 https://github.com/kametan0730/interface_2022_11/blob/master/chapter2/ip.cpp#L26
 */
 func ipInputToOurs(inputdev *netDevice, ipheader *ipHeader, packet []byte) {
+	// 5章で追加
 	// NATの外側から内側への通信か判断
 	for _, dev := range netDeviceList {
 		if dev.ipdev != (ipDevice{}) && dev.ipdev.natdev != (natDevice{}) &&
@@ -277,13 +272,6 @@ func ipInputToOurs(inputdev *netDevice, ipheader *ipHeader, packet []byte) {
 					return
 				}
 				natExecuted = true
-
-			case IP_PROTOCOL_NUM_ICMP:
-				destPacket, err = natExec(ipheader, natPacketHeader{packet: packet}, dev.ipdev.natdev, icmp, incoming)
-				if err != nil {
-					return
-				}
-				natExecuted = true
 			}
 			if natExecuted {
 				ipPacket := ipheader.ToPacket(false)
@@ -299,6 +287,7 @@ func ipInputToOurs(inputdev *netDevice, ipheader *ipHeader, packet []byte) {
 	switch ipheader.protocol {
 	case IP_PROTOCOL_NUM_ICMP:
 		fmt.Println("ICMP received!")
+		// 3章で追加
 		icmpInput(inputdev, ipheader.srcAddr, ipheader.destAddr, packet)
 	case IP_PROTOCOL_NUM_UDP:
 		fmt.Printf("udp received : %x\n", packet)
