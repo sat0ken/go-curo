@@ -13,7 +13,7 @@ type netDevice struct {
 	socket     int
 	sockaddr   syscall.SockaddrLinklayer
 	etheHeader ethernetHeader
-	ipdev      ipDevice
+	ipdev      ipDevice // 2章で追加
 }
 
 func isIgnoreInterfaces(name string) bool {
@@ -50,10 +50,11 @@ func (netdev *netDevice) netDevicePoll(mode string) error {
 			return fmt.Errorf("recv err, n is %d, device is %s, err is %s", n, netdev.name, err)
 		}
 	}
-	// Chapter1では受信したパケットをprintするだけ
+	// 1章では受信したパケットをprintするだけ
 	if mode == "ch1" {
 		fmt.Printf("Received %d bytes from %s: %x\n", n, netdev.name, recvbuffer[:n])
 	} else {
+		// 2章から追加
 		ethernetInput(netdev, recvbuffer[:n])
 	}
 
