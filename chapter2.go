@@ -89,6 +89,8 @@ func runChapter2(mode string) {
 			netDeviceList = append(netDeviceList, &netdev)
 		}
 	}
+
+	// 5章で追加
 	// chapter5のNW構成で動作させるときは、NATの設定の投入
 	if mode == "ch5" {
 		configureIPNat("router1-br0", getnetDeviceByName("router1-router2").ipdev.address)
