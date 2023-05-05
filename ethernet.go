@@ -2,10 +2,7 @@ package main
 
 import (
 	"bytes"
-	"encoding/binary"
-	"fmt"
 	"log"
-	"strings"
 )
 
 const ETHER_TYPE_IP uint16 = 0x0800
@@ -37,46 +34,10 @@ func setMacAddr(macAddrByte []byte) [6]uint8 {
 	return macAddrUint8
 }
 
-func setIPAddr(ipAddrByte []byte) [4]uint8 {
-	var ipAddrUint8 [4]uint8
-	for i, v := range ipAddrByte {
-		ipAddrUint8[i] = v
-	}
-	return ipAddrUint8
-}
-
 func macToByte(macaddr [6]uint8) (b []byte) {
 	for _, v := range macaddr {
 		b = append(b, v)
 	}
-	return b
-}
-
-func printMacAddr(macddr [6]uint8) string {
-	var str string
-	for _, v := range macddr {
-		str += fmt.Sprintf("%x:", v)
-	}
-	return strings.TrimRight(str, ":")
-}
-
-func byteToUint16(b []byte) uint16 {
-	return binary.BigEndian.Uint16(b)
-}
-
-func byteToUint32(b []byte) uint32 {
-	return binary.BigEndian.Uint32(b)
-}
-
-func uint16ToByte(i uint16) []byte {
-	b := make([]byte, 2)
-	binary.BigEndian.PutUint16(b, i)
-	return b
-}
-
-func uint32ToByte(i uint32) []byte {
-	b := make([]byte, 4)
-	binary.BigEndian.PutUint32(b, i)
 	return b
 }
 
@@ -96,10 +57,7 @@ func ethernetInput(netdev *netDevice, packet []byte) {
 	// イーサタイプの値から上位プロトコルを特定する
 	switch netdev.etheHeader.etherType {
 	case ETHER_TYPE_ARP:
-		err := arpInput(netdev, packet[14:])
-		if err != nil {
-			log.Println(err)
-		}
+		arpInput(netdev, packet[14:])
 	case ETHER_TYPE_IP:
 		ipInput(netdev, packet[14:])
 	}
