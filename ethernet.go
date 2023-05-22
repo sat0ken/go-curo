@@ -53,13 +53,14 @@ func ethernetInput(netdev *netDevice, packet []byte) {
 		// 自分のMACアドレス宛てかブロードキャストでなければ return する
 		return
 	}
-
 	// イーサタイプの値から上位プロトコルを特定する
 	switch netdev.etheHeader.etherType {
 	case ETHER_TYPE_ARP:
 		arpInput(netdev, packet[14:])
 	case ETHER_TYPE_IP:
 		ipInput(netdev, packet[14:])
+	case ETHER_TYPE_IPV6:
+		ipv6Input(netdev, packet[14:])
 	}
 }
 
