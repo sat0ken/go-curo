@@ -12,10 +12,13 @@ const IP_ADDRESS_LIMITED_BROADCAST uint32 = 0xffffffff
 const IP_PROTOCOL_NUM_ICMP uint8 = 0x01
 const IP_PROTOCOL_NUM_TCP uint8 = 0x06
 const IP_PROTOCOL_NUM_UDP uint8 = 0x11
+const IP_PROTOCOL_NUM_ICMPv6 uint8 = 0x3a
 
 type ipDevice struct {
-	address   uint32    // デバイスのIPアドレス
-	netmask   uint32    // サブネットマスク
+	address   uint32 // デバイスのIPアドレス
+	addressv6 uint64 // デバイスのIPv6アドレス
+	netmask   uint32 // サブネットマスク
+	netmaskv6 uint64
 	broadcast uint32    // ブロードキャストアドレス
 	natdev    natDevice // 5章で追加
 }
@@ -77,16 +80,22 @@ func (ipheader ipHeader) ToPacket(calc bool) (ipHeaderByte []byte) {
 
 func getIPdevice(addrs []net.Addr) (ipdev ipDevice) {
 	for _, addr := range addrs {
-		// ipv6ではなくipv4アドレスをリターン
 		ipaddrstr := addr.String()
+		// IPv4をセット
 		if !strings.Contains(ipaddrstr, ":") && strings.Contains(ipaddrstr, ".") {
 			ip, ipnet, _ := net.ParseCIDR(ipaddrstr)
 			ipdev.address = byteToUint32(ip.To4())
 			ipdev.netmask = byteToUint32(ipnet.Mask)
 			// ブロードキャストアドレスの計算はIPアドレスとサブネットマスクのbit反転の2進数「OR（論理和）」演算
 			ipdev.broadcast = ipdev.address | (^ipdev.netmask)
+		} else {
+			// IPv6をセット
+			ip, ipnet, _ := net.ParseCIDR(ipaddrstr)
+			ipdev.addressv6 = byteToUint64(ip.To16())
+			ipdev.netmaskv6 = byteToUint64(ipnet.Mask)
 		}
 	}
+	fmt.Printf("ipdev is %+v\n", ipdev)
 	return ipdev
 }
 
@@ -146,7 +155,6 @@ func ipInput(inputdev *netDevice, packet []byte) {
 	}
 
 	// IPバージョンが4でなければドロップ
-	// Todo: IPv6の実装
 	if ipheader.version != 4 {
 		if ipheader.version == 6 {
 			fmt.Println("packet is IPv6")
