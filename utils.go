@@ -55,3 +55,9 @@ func uint32ToByte(i uint32) []byte {
 	binary.BigEndian.PutUint32(b, i)
 	return b
 }
+
+func uint64ToByte(i uint64) []byte {
+	b := make([]byte, 8)
+	binary.BigEndian.PutUint64(b, i)
+	return b
+}

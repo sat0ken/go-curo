@@ -1,6 +1,9 @@
 package main
 
-import "fmt"
+import (
+	"bytes"
+	"fmt"
+)
 
 type ipv6Header struct {
 	version      uint8
@@ -10,6 +13,14 @@ type ipv6Header struct {
 	hoplimit     uint8
 	srcAddr      uint64
 	destAddr     uint64
+}
+
+// チェックサム計算用の疑似ヘッダ
+type ipv6DummyHeader struct {
+	srcAddr  uint64
+	destAddr uint64
+	length   uint32
+	protocol uint32
 }
 
 /*
@@ -37,4 +48,18 @@ func ipv6Input(inputdev *netDevice, packet []byte) {
 	}
 
 	fmt.Printf("ipv6 packet is %+v\n", ipv6hader)
+
+	// 受信したMACアドレスがARPテーブルになければ追加しておく
+	// Todo: ARPテーブルをIPv6に対応する必要がある
+}
+
+func (ipv6Dummy *ipv6DummyHeader) ToPacket() []byte {
+	var b bytes.Buffer
+
+	b.Write(uint64ToByte(ipv6Dummy.srcAddr))
+	b.Write(uint64ToByte(ipv6Dummy.destAddr))
+	b.Write(uint32ToByte(ipv6Dummy.length))
+	b.Write(uint32ToByte(ipv6Dummy.protocol))
+
+	return b.Bytes()
 }
