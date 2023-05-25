@@ -7,7 +7,8 @@ import (
 
 type ipv6Header struct {
 	version      uint8
-	trafficClass uint32
+	trafficClass uint8
+	flowLabel    uint32
 	headerLen    uint16
 	nextHeader   uint8
 	hoplimit     uint8
@@ -39,7 +40,8 @@ func ipv6Input(inputdev *netDevice, packet []byte) {
 
 	ipv6hader := ipv6Header{
 		version:      packet[0] >> 4,
-		trafficClass: byteToUint32(packet[0:4]),
+		trafficClass: packet[0] >> 7,
+		flowLabel:    byteToUint32([]byte{packet[0] >> 7, packet[1], packet[2], packet[3]}),
 		headerLen:    byteToUint16(packet[4:6]),
 		nextHeader:   packet[6],
 		hoplimit:     packet[7],
