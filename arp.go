@@ -28,9 +28,10 @@ type arpIPToEthernet struct {
 }
 
 type arpTableEntry struct {
-	macAddr [6]uint8
-	ipAddr  uint32
-	netdev  *netDevice
+	macAddr  [6]uint8
+	ipv4Addr uint32
+	ipv6Addr uint64
+	netdev   *netDevice
 }
 
 func (arpmsg arpIPToEthernet) ToPacket() []byte {
@@ -103,42 +104,89 @@ func arpInput(netdev *netDevice, packet []byte) {
 ARPテーブルにエントリの追加と更新
 https://github.com/kametan0730/interface_2022_11/blob/master/chapter2/arp.cpp#L23
 */
-func addArpTableEntry(netdev *netDevice, ipaddr uint32, macaddr [6]uint8) {
+func addArpTableEntry(netdev *netDevice, ipaddr any, macaddr [6]uint8) {
+	var ipv4Addr uint32
+	var ipv6Addr uint64
+	var isIPv6 bool
+	switch ipaddr.(type) {
+	case uint32:
+		isIPv6 = false
+		ipv4Addr = ipaddr.(uint32)
+	case uint64:
+		isIPv6 = true
+		ipv6Addr = ipaddr.(uint64)
+	}
 
 	// 既存のARPテーブルの更新が必要か確認
 	if len(ArpTableEntryList) != 0 {
 		for _, arpTable := range ArpTableEntryList {
-			// IPアドレスは同じだがMacアドレスが異なる場合は更新
-			if arpTable.ipAddr == ipaddr && arpTable.macAddr != macaddr {
-				arpTable.macAddr = macaddr
+
+			if isIPv6 == false {
+				// IPアドレスは同じだがMacアドレスが異なる場合は更新
+				if arpTable.ipv4Addr == ipv4Addr && arpTable.macAddr != macaddr {
+					arpTable.macAddr = macaddr
+				}
+				// Macアドレスは同じだがIPアドレスが変わった場合は更新
+				if arpTable.macAddr == macaddr && arpTable.ipv4Addr != ipv4Addr {
+					arpTable.ipv4Addr = ipv4Addr
+				}
+				// 既に存在する場合はreturnする
+				if arpTable.macAddr == macaddr && arpTable.ipv4Addr == ipv4Addr {
+					return
+				}
+			} else {
+				// IPアドレスは同じだがMacアドレスが異なる場合は更新
+				if arpTable.ipv6Addr == ipv6Addr && arpTable.macAddr != macaddr {
+					arpTable.macAddr = macaddr
+				}
+				// Macアドレスは同じだがIPアドレスが変わった場合は更新
+				if arpTable.macAddr == macaddr && arpTable.ipv6Addr != ipv6Addr {
+					arpTable.ipv6Addr = ipv6Addr
+				}
+				// 既に存在する場合はreturnする
+				if arpTable.macAddr == macaddr && arpTable.ipv4Addr == ipaddr {
+					return
+				}
 			}
-			// Macアドレスは同じだがIPアドレスが変わった場合は更新
-			if arpTable.macAddr == macaddr && arpTable.ipAddr != ipaddr {
-				arpTable.ipAddr = ipaddr
-			}
-			// 既に存在する場合はreturnする
-			if arpTable.macAddr == macaddr && arpTable.ipAddr == ipaddr {
-				return
-			}
+
 		}
 	}
 
-	ArpTableEntryList = append(ArpTableEntryList, arpTableEntry{
-		macAddr: macaddr,
-		ipAddr:  ipaddr,
-		netdev:  netdev,
-	})
-	//fmt.Printf("ARP TABEL is %+v\n", ArpTableEntryList)
+	// 新規エントリ追加
+	if isIPv6 == false {
+		ArpTableEntryList = append(ArpTableEntryList, arpTableEntry{
+			macAddr:  macaddr,
+			ipv4Addr: ipv4Addr,
+			netdev:   netdev,
+		})
+	} else {
+		ArpTableEntryList = append(ArpTableEntryList, arpTableEntry{
+			macAddr:  macaddr,
+			ipv6Addr: ipv6Addr,
+			netdev:   netdev,
+		})
+	}
 }
 
 /*
 ARPテーブルの検索
 */
-func searchArpTableEntry(ipaddr uint32) ([6]uint8, *netDevice) {
-	if len(ArpTableEntryList) != 0 {
-		for _, arpTable := range ArpTableEntryList {
-			if arpTable.ipAddr == ipaddr {
-				return arpTable.macAddr, arpTable.netdev
+func searchArpTableEntry(ipaddr any) ([6]uint8, *netDevice) {
+	switch addr := ipaddr.(type) {
+	case uint32: // IPv4アドレス
+		if len(ArpTableEntryList) != 0 {
+			for _, arpTable := range ArpTableEntryList {
+				if arpTable.ipv4Addr == addr {
+					return arpTable.macAddr, arpTable.netdev
+				}
+			}
+		}
+	case uint64: // IPv6アドレス
+		if len(ArpTableEntryList) != 0 {
+			for _, arpTable := range ArpTableEntryList {
+				if arpTable.ipv6Addr == ipaddr {
+					return arpTable.macAddr, arpTable.netdev
+				}
 			}
 		}
 	}
