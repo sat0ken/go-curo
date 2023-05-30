@@ -69,6 +69,7 @@ func icmpv6Input(inputdev *netDevice, sourceAddr, destAddr uint64, icmpPacket []
 			sequence: byteToUint16(icmpPacket[6:8]),
 			data:     icmpPacket[8:],
 		}
-		// ipPacketEncapsulateOutput(inputdev, sourceAddr, destAddr, icmpmsg.ReplyPacket(), IP_PROTOCOL_NUM_ICMP)
+		fmt.Printf("ICMPv6 Echo Replay is %x\n", icmpmsg.ReplyPacket())
+		ipv6PacketEncapsulateOutput(inputdev, sourceAddr, destAddr, icmpmsg.ReplyPacket(), IP_PROTOCOL_NUM_ICMP)
 	}
 }

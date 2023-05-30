@@ -50,7 +50,7 @@ type ipRouteEntry struct {
 	nexthop uint32
 }
 
-func (ipheader ipHeader) ToPacket(calc bool) (ipHeaderByte []byte) {
+func (ipheader *ipHeader) ToPacket(calc bool) (ipHeaderByte []byte) {
 	var b bytes.Buffer
 
 	b.Write([]byte{ipheader.version<<4 + ipheader.headerLen})
@@ -398,11 +398,11 @@ func ipPacketEncapsulateOutput(inputdev *netDevice, destAddr, srcAddr uint32, pa
 	// payloadを追加
 	ipPacket = append(ipPacket, payload...)
 
-	// ルートテーブルを検索して送信先IPのMACアドレスがなければ、
+	// ARPテーブルを検索して送信先IPのMACアドレスがなければ、
 	// ARPリクエストを生成して送信して結果を受信してから、ethernetからパケットを送る
 	destMacAddr, _ := searchArpTableEntry(destAddr)
 	if destMacAddr != [6]uint8{0, 0, 0, 0, 0, 0} {
-		// ルートテーブルに送信するIPアドレスのMACアドレスがあれば送信
+		// ARPテーブルに送信するIPアドレスのMACアドレスがあれば送信
 		ethernetOutput(inputdev, destMacAddr, ipPacket, ETHER_TYPE_IP)
 	} else {
 		// ARPリクエストを出す
