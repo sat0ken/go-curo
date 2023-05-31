@@ -15,10 +15,10 @@ const IP_PROTOCOL_NUM_UDP uint8 = 0x11
 const IP_PROTOCOL_NUM_ICMPv6 uint8 = 0x3a
 
 type ipDevice struct {
-	address   uint32 // デバイスのIPアドレス
-	addressv6 uint64 // デバイスのIPv6アドレス
-	netmask   uint32 // サブネットマスク
-	netmaskv6 uint64
+	address   uint32   // デバイスのIPアドレス
+	addressv6 [16]byte // デバイスのIPv6アドレス
+	netmask   uint32   // サブネットマスク
+	netmaskv6 string
 	broadcast uint32    // ブロードキャストアドレス
 	natdev    natDevice // 5章で追加
 }
@@ -91,8 +91,9 @@ func getIPdevice(addrs []net.Addr) (ipdev ipDevice) {
 		} else {
 			// IPv6をセット
 			ip, ipnet, _ := net.ParseCIDR(ipaddrstr)
-			ipdev.addressv6 = byteToUint64(ip.To16())
-			ipdev.netmaskv6 = byteToUint64(ipnet.Mask)
+			ipdev.addressv6 = ipv6ToByte(ip.String())
+			ipdev.netmaskv6 = ipnet.Mask.String()
+			fmt.Printf("IPv6 String is %s : %s\n", ipaddrstr, ip.String())
 		}
 	}
 	fmt.Printf("ipdev is %+v\n", ipdev)

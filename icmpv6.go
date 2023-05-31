@@ -11,7 +11,7 @@ const (
 	ICMPv6_TYPE_ECHO_REPLY   uint8 = 129
 )
 
-func (icmpmsg icmpMessage) Replyv6Packet(sourceAddr, destAddr uint64) (icmpv6Packet []byte) {
+func (icmpmsg icmpMessage) Replyv6Packet(sourceAddr, destAddr [16]byte) (icmpv6Packet []byte) {
 	var b bytes.Buffer
 	// ICMPv6ヘッダ
 	b.Write([]byte{ICMPv6_TYPE_ECHO_REPLY})
@@ -45,7 +45,7 @@ func (icmpmsg icmpMessage) Replyv6Packet(sourceAddr, destAddr uint64) (icmpv6Pac
 	return icmpv6Packet
 }
 
-func icmpv6Input(inputdev *netDevice, sourceAddr, destAddr uint64, icmpPacket []byte) {
+func icmpv6Input(inputdev *netDevice, sourceAddr, destAddr [16]byte, icmpPacket []byte) {
 	// ICMPメッセージ長より短かったら
 	if len(icmpPacket) < 4 {
 		fmt.Println("Received ICMPv6 Packet is too short")
@@ -69,7 +69,7 @@ func icmpv6Input(inputdev *netDevice, sourceAddr, destAddr uint64, icmpPacket []
 			sequence: byteToUint16(icmpPacket[6:8]),
 			data:     icmpPacket[8:],
 		}
-		fmt.Printf("ICMPv6 Echo Replay is %x\n", icmpmsg.ReplyPacket())
-		ipv6PacketEncapsulateOutput(inputdev, sourceAddr, destAddr, icmpmsg.ReplyPacket(), IP_PROTOCOL_NUM_ICMP)
+		payload := icmpmsg.Replyv6Packet(sourceAddr, destAddr)
+		ipv6PacketEncapsulateOutput(inputdev, sourceAddr, destAddr, payload, IP_PROTOCOL_NUM_ICMP)
 	}
 }

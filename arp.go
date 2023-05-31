@@ -30,7 +30,7 @@ type arpIPToEthernet struct {
 type arpTableEntry struct {
 	macAddr  [6]uint8
 	ipv4Addr uint32
-	ipv6Addr uint64
+	ipv6Addr [16]byte
 	netdev   *netDevice
 }
 
@@ -106,15 +106,15 @@ https://github.com/kametan0730/interface_2022_11/blob/master/chapter2/arp.cpp#L2
 */
 func addArpTableEntry(netdev *netDevice, ipaddr any, macaddr [6]uint8) {
 	var ipv4Addr uint32
-	var ipv6Addr uint64
+	var ipv6Addr [16]byte
 	var isIPv6 bool
 	switch ipaddr.(type) {
 	case uint32:
 		isIPv6 = false
 		ipv4Addr = ipaddr.(uint32)
-	case uint64:
+	case [16]byte:
 		isIPv6 = true
-		ipv6Addr = ipaddr.(uint64)
+		ipv6Addr = ipaddr.([16]byte)
 	}
 
 	// 既存のARPテーブルの更新が必要か確認
@@ -136,11 +136,11 @@ func addArpTableEntry(netdev *netDevice, ipaddr any, macaddr [6]uint8) {
 				}
 			} else {
 				// IPアドレスは同じだがMacアドレスが異なる場合は更新
-				if arpTable.ipv6Addr == ipv6Addr && arpTable.macAddr != macaddr {
+				if bytes.Equal(arpTable.ipv6Addr[:], ipv6Addr[:]) && arpTable.macAddr != macaddr {
 					arpTable.macAddr = macaddr
 				}
 				// Macアドレスは同じだがIPアドレスが変わった場合は更新
-				if arpTable.macAddr == macaddr && arpTable.ipv6Addr != ipv6Addr {
+				if arpTable.macAddr == macaddr && !bytes.Equal(arpTable.ipv6Addr[:], ipv6Addr[:]) {
 					arpTable.ipv6Addr = ipv6Addr
 				}
 				// 既に存在する場合はreturnする
