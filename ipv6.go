@@ -66,7 +66,9 @@ func ipv6ToByte(addr string) (ipv6AddrByte [16]byte) {
 		case 1:
 			v = fmt.Sprintf("000%s", v)
 		case 0:
-			v = "0000"
+			for i := len(splitAddr); i <= 8; i++ {
+				v += "0000"
+			}
 		}
 		h, _ := hex.DecodeString(v)
 		b.Write(h)
@@ -103,8 +105,6 @@ func ipv6Input(inputdev *netDevice, packet []byte) {
 	copy(ipv6header.srcAddr[:], packet[8:24])
 	copy(ipv6header.destAddr[:], packet[24:40])
 
-	fmt.Printf("ipv6 header src is %x, dest is %x\n", ipv6header.srcAddr, ipv6header.destAddr)
-
 	// 受信したMACアドレスがARPテーブルになければ追加しておく
 	macaddr, _ := searchArpTableEntry(ipv6header.srcAddr)
 	if macaddr == [6]uint8{} {
@@ -117,10 +117,8 @@ func ipv6Input(inputdev *netDevice, packet []byte) {
 	}
 	// 宛先アドレスがブロードキャストアドレスか受信したNICインターフェイスのIPアドレスの場合
 
-	fmt.Printf("ipv6header.destAddr is %x, inputdev.ipdev.addressv6 is %x\n", ipv6header.destAddr[:], inputdev.ipdev.addressv6[:])
 	if bytes.Equal(ipv6header.destAddr[:], inputdev.ipdev.addressv6[:]) {
 		// 自分宛の通信として処理
-		fmt.Println("自分宛の通信として処理")
 		ipv6InputToOurs(inputdev, &ipv6header, packet[40:])
 	}
 }
@@ -173,6 +171,7 @@ func ipv6PacketEncapsulateOutput(inputdev *netDevice, destAddr, srcAddr [16]byte
 		ethernetOutput(inputdev, destMacAddr, ipv6Packet, ETHER_TYPE_IPV6)
 	} else {
 		// Todo: 近隣探索のパケットを出す
+		fmt.Println("destMacAddr is nil...")
 	}
 
 }
