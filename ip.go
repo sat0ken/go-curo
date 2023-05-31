@@ -93,7 +93,6 @@ func getIPdevice(addrs []net.Addr) (ipdev ipDevice) {
 			ip, ipnet, _ := net.ParseCIDR(ipaddrstr)
 			ipdev.addressv6 = ipv6ToByte(ip.String())
 			ipdev.netmaskv6 = ipnet.Mask.String()
-			fmt.Printf("IPv6 String is %s : %s\n", ipaddrstr, ip.String())
 		}
 	}
 	fmt.Printf("ipdev is %+v\n", ipdev)
