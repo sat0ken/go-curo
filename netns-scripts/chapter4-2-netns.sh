@@ -109,3 +109,8 @@ ip netns exec host3 ip addr add 192.168.4.2/24 dev host3-router3
 ip netns exec host3 ip link set host3-router3 up
 ip netns exec host3 ethtool -K host3-router3 rx off tx off
 ip netns exec host3 ip route add default via 192.168.4.1
+
+# router1でicmpを無視するように
+ip netns exec router1 sysctl net.ipv4.icmp_echo_ignore_all=1
+# icmpv6を無視するように
+ip netns exec router1 sysctl net.ipv6.icmp.echo_ignore_all=1

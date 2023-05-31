@@ -65,3 +65,5 @@ ip netns exec host2 ip route add default via 192.168.2.1
 
 # router1でicmpを無視するように
 ip netns exec router1 sysctl net.ipv4.icmp_echo_ignore_all=1
+# icmpv6を無視するように
+ip netns exec router1 sysctl net.ipv6.icmp.echo_ignore_all=1
