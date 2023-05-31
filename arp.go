@@ -181,7 +181,7 @@ func searchArpTableEntry(ipaddr any) ([6]uint8, *netDevice) {
 				}
 			}
 		}
-	case uint64: // IPv6アドレス
+	case [16]byte: // IPv6アドレス
 		if len(ArpTableEntryList) != 0 {
 			for _, arpTable := range ArpTableEntryList {
 				if arpTable.ipv6Addr == ipaddr {
