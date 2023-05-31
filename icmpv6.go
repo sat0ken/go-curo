@@ -70,6 +70,6 @@ func icmpv6Input(inputdev *netDevice, sourceAddr, destAddr [16]byte, icmpPacket 
 			data:     icmpPacket[8:],
 		}
 		payload := icmpmsg.Replyv6Packet(sourceAddr, destAddr)
-		ipv6PacketEncapsulateOutput(inputdev, sourceAddr, destAddr, payload, IP_PROTOCOL_NUM_ICMP)
+		ipv6PacketEncapsulateOutput(inputdev, sourceAddr, destAddr, payload, IP_PROTOCOL_NUM_ICMPv6)
 	}
 }
