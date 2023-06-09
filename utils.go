@@ -40,10 +40,6 @@ func byteToUint32(b []byte) uint32 {
 	return binary.BigEndian.Uint32(b)
 }
 
-func byteToUint64(b []byte) uint64 {
-	return binary.BigEndian.Uint64(b)
-}
-
 func uint16ToByte(i uint16) []byte {
 	b := make([]byte, 2)
 	binary.BigEndian.PutUint16(b, i)
@@ -56,8 +52,8 @@ func uint32ToByte(i uint32) []byte {
 	return b
 }
 
-func uint64ToByte(i uint64) []byte {
-	b := make([]byte, 8)
-	binary.BigEndian.PutUint64(b, i)
-	return b
+func setipv6addr(ipv6byte []byte) [16]byte {
+	b16 := [16]byte{}
+	copy(b16[:], ipv6byte)
+	return b16
 }

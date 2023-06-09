@@ -9,6 +9,9 @@ import (
 
 const FLOW_LABEL = 0x137ca
 
+// プロフェッショナルIPv6 12.3 Solicited-Nodeマルチキャストアドレス
+var solicitedNoneMultiCastAddr = []byte{0xff, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0xff}
+
 type ipv6Header struct {
 	version      uint8
 	trafficClass uint8
@@ -99,11 +102,9 @@ func ipv6Input(inputdev *netDevice, packet []byte) {
 		headerLen:    byteToUint16(packet[4:6]),
 		nextHeader:   packet[6],
 		hoplimit:     packet[7],
-		//srcAddr:      packet[8:24],
-		//destAddr:     packet[24:40],
+		srcAddr:      setipv6addr(packet[8:24]),
+		destAddr:     setipv6addr(packet[24:40]),
 	}
-	copy(ipv6header.srcAddr[:], packet[8:24])
-	copy(ipv6header.destAddr[:], packet[24:40])
 
 	// 受信したMACアドレスがARPテーブルになければ追加しておく
 	macaddr, _ := searchArpTableEntry(ipv6header.srcAddr)
@@ -116,8 +117,8 @@ func ipv6Input(inputdev *netDevice, packet []byte) {
 		return
 	}
 	// 宛先アドレスがブロードキャストアドレスか受信したNICインターフェイスのIPアドレスの場合
-
-	if bytes.Equal(ipv6header.destAddr[:], inputdev.ipdev.addressv6[:]) {
+	if bytes.Equal(ipv6header.destAddr[:], inputdev.ipdev.addressv6[:]) ||
+		bytes.HasPrefix(ipv6header.destAddr[:], solicitedNoneMultiCastAddr) {
 		// 自分宛の通信として処理
 		ipv6InputToOurs(inputdev, &ipv6header, packet[40:])
 	}

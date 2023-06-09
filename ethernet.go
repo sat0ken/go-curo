@@ -49,7 +49,9 @@ func ethernetInput(netdev *netDevice, packet []byte) {
 	netdev.etheHeader.etherType = byteToUint16(packet[12:14])
 
 	// 自分のMACアドレス宛てかブロードキャストの通信かを確認する
-	if netdev.macaddr != netdev.etheHeader.destAddr && netdev.etheHeader.destAddr != ETHERNET_ADDRESS_BROADCAST {
+	// Todo: IPv6のブロードキャストに対応する
+	if netdev.macaddr != netdev.etheHeader.destAddr && netdev.etheHeader.destAddr != ETHERNET_ADDRESS_BROADCAST &&
+		!bytes.HasPrefix(packet[0:6], []byte{0x33, 0x33, 0xff}) {
 		// 自分のMACアドレス宛てかブロードキャストでなければ return する
 		return
 	}
