@@ -193,8 +193,7 @@ func icmpv6Input(inputdev *netDevice, sourceAddr, destAddr [16]byte, icmpPacket 
 				macaddr: setMacAddr(icmpPacket[26:32]),
 			},
 		}
-		payload := icmpmsg.ReplyNeighborAdvertisement(inputdev.ipdev.addressv6, destAddr, inputdev.macaddr)
-		fmt.Printf("ipv6 payload is %x\n", payload)
-		ipv6PacketEncapsulateOutput(inputdev, inputdev.ipdev.addressv6, destAddr, payload, IP_PROTOCOL_NUM_ICMPv6)
+		payload := icmpmsg.ReplyNeighborAdvertisement(sourceAddr, destAddr, inputdev.macaddr)
+		ipv6PacketEncapsulateOutput(inputdev, sourceAddr, destAddr, payload, IP_PROTOCOL_NUM_ICMPv6)
 	}
 }

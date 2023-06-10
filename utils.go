@@ -51,9 +51,3 @@ func uint32ToByte(i uint32) []byte {
 	binary.BigEndian.PutUint32(b, i)
 	return b
 }
-
-func setipv6addr(ipv6byte []byte) [16]byte {
-	b16 := [16]byte{}
-	copy(b16[:], ipv6byte)
-	return b16
-}

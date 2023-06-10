@@ -80,6 +80,14 @@ func ipv6ToByte(addr string) (ipv6AddrByte [16]byte) {
 	return ipv6AddrByte
 }
 
+func setipv6addr(ipv6 []byte) [16]byte {
+	var b16 [16]byte
+	for i, v := range ipv6 {
+		b16[i] = v
+	}
+	return b16
+}
+
 /*
 IPv6パケットの受信処理
 */
@@ -106,6 +114,8 @@ func ipv6Input(inputdev *netDevice, packet []byte) {
 		destAddr:     setipv6addr(packet[24:40]),
 	}
 
+	fmt.Printf("ipv6 header is %+v\n", ipv6header)
+
 	// 受信したMACアドレスがARPテーブルになければ追加しておく
 	macaddr, _ := searchArpTableEntry(ipv6header.srcAddr)
 	if macaddr == [6]uint8{} {
@@ -116,7 +126,7 @@ func ipv6Input(inputdev *netDevice, packet []byte) {
 		fmt.Println("packet is not IPv6")
 		return
 	}
-	// 宛先アドレスがブロードキャストアドレスか受信したNICインターフェイスのIPアドレスの場合
+	// 宛先アドレスマルチキャストアドレスか受信したNICインターフェイスのIPv6アドレスの場合
 	if bytes.Equal(ipv6header.destAddr[:], inputdev.ipdev.addressv6[:]) ||
 		bytes.HasPrefix(ipv6header.destAddr[:], solicitedNoneMultiCastAddr) {
 		// 自分宛の通信として処理
@@ -172,7 +182,7 @@ func ipv6PacketEncapsulateOutput(inputdev *netDevice, destAddr, srcAddr [16]byte
 		ethernetOutput(inputdev, destMacAddr, ipv6Packet, ETHER_TYPE_IPV6)
 	} else {
 		// Todo: 近隣探索のパケットを出す
-		fmt.Println("destMacAddr is nil...")
+		fmt.Printf("destMacAddr %s is nil...\n", printMacAddr(destMacAddr))
 	}
 
 }
