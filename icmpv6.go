@@ -9,6 +9,8 @@ const (
 	// https://tex2e.github.io/rfc-translater/html/rfc4443.html
 	ICMPv6_TYPE_ECHO_REQUEST           uint8 = 128
 	ICMPv6_TYPE_ECHO_REPLY             uint8 = 129
+	ICMPv6_TYPE_Router_Solicitation    uint8 = 133
+	ICMPv6_TYPE_Router_Advertisement   uint8 = 134
 	ICMPv6_TYPE_Neighbor_Solicitation  uint8 = 135
 	ICMPv6_TYPE_Neighbor_Advertisement uint8 = 136
 )
@@ -31,6 +33,22 @@ type icmpv6Message struct {
 	icmpCode uint8
 	checksum uint16
 	message  any
+}
+
+// https://tex2e.github.io/rfc-translater/html/rfc4861.html#4-1--Router-Solicitation-Message-Format
+type icmpv6RouterSolicitation struct {
+	reserved uint32
+}
+
+// https://tex2e.github.io/rfc-translater/html/rfc4861.html#4-2--Router-Advertisement-Message-Format
+type icmpv6RouterAdvertisement struct {
+	curhoplimit           uint8
+	flagManagedAddrConfig bool
+	flagOtherConfig       bool
+	reserved              uint8
+	lifetime              uint16
+	reachabletime         uint32
+	retranstime           uint32
 }
 
 // https://tex2e.github.io/rfc-translater/html/rfc4861.html#4-3--Neighbor-Solicitation-Message-Format
@@ -182,6 +200,8 @@ func icmpv6Input(inputdev *netDevice, sourceAddr, destAddr [16]byte, icmpPacket 
 		}
 		payload := icmpmsg.Replyv6Packet(sourceAddr, destAddr)
 		ipv6PacketEncapsulateOutput(inputdev, sourceAddr, destAddr, payload, IP_PROTOCOL_NUM_ICMPv6)
+	case ICMPv6_TYPE_Router_Solicitation:
+
 	case ICMPv6_TYPE_Neighbor_Solicitation:
 		fmt.Println("ICMPv6 Neighbor_Solicitation is received")
 		icmpmsg.message = icmpv6NeighborSolicitation{
