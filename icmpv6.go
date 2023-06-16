@@ -38,6 +38,7 @@ type icmpv6Message struct {
 // https://tex2e.github.io/rfc-translater/html/rfc4861.html#4-1--Router-Solicitation-Message-Format
 type icmpv6RouterSolicitation struct {
 	reserved uint32
+	optnd    optNeighborDiscovery
 }
 
 // https://tex2e.github.io/rfc-translater/html/rfc4861.html#4-2--Router-Advertisement-Message-Format
@@ -72,7 +73,7 @@ type icmpv6NeighborAdvertisement struct {
 type optNeighborDiscovery struct {
 	opttype uint8
 	length  uint8
-	macaddr [6]uint8
+	options any
 }
 
 func (na *icmpv6NeighborAdvertisement) ToPacket() []byte {
@@ -91,7 +92,24 @@ func (na *icmpv6NeighborAdvertisement) ToPacket() []byte {
 	b.Write(na.targetAddr[:])
 	// option
 	b.Write([]byte{na.optnd.opttype, na.optnd.length})
-	b.Write(macToByte(na.optnd.macaddr))
+	b.Write(macToByte(na.optnd.options.([6]uint8)))
+
+	return b.Bytes()
+}
+
+func (ra *icmpv6RouterAdvertisement) ToPacket() []byte {
+	var b bytes.Buffer
+	b.Write([]byte{ra.curhoplimit})
+	if ra.flagManagedAddrConfig {
+		ra.reserved += 128
+	}
+	if ra.flagManagedAddrConfig {
+		ra.reserved += 64
+	}
+	b.Write([]byte{ra.reserved})
+	b.Write(uint16ToByte(ra.lifetime))
+	b.Write(uint32ToByte(ra.reachabletime))
+	b.Write(uint32ToByte(ra.retranstime))
 
 	return b.Bytes()
 }
@@ -147,7 +165,7 @@ func (icmpmsg *icmpv6Message) ReplyNeighborAdvertisement(sourceAddr, destAddr [1
 		optnd: optNeighborDiscovery{
 			opttype: 2,
 			length:  1,
-			macaddr: sourceMacAddr,
+			options: sourceMacAddr,
 		},
 	}
 	b.Write(na.ToPacket())
@@ -172,6 +190,48 @@ func (icmpmsg *icmpv6Message) ReplyNeighborAdvertisement(sourceAddr, destAddr [1
 	icmpv6Packet[3] = checksum[1]
 
 	return icmpv6Packet
+}
+
+func (icmpmsg *icmpv6Message) ReplyRouterAdvertisement(sourceAddr, destAddr [16]byte, sourceMacAddr [6]uint8) (icmpv6Packet []byte) {
+	var b bytes.Buffer
+	// ICMPv6ヘッダ
+	b.Write([]byte{ICMPv6_TYPE_Neighbor_Advertisement})
+	b.Write([]byte{0x00})       // icmp code
+	b.Write([]byte{0x00, 0x00}) // checksum
+	// Router Advertisementメッセージ
+	ra := icmpv6RouterAdvertisement{
+		curhoplimit:           255,
+		flagManagedAddrConfig: false,
+		flagOtherConfig:       false,
+		reserved:              0,
+		lifetime:              3600,
+		reachabletime:         3600,
+		retranstime:           3600,
+	}
+	b.Write(ra.ToPacket())
+	// いったんパケットデータにする
+	icmpv6Packet = b.Bytes()
+	// IPv6ダミーヘッダをセット
+	dumyv6Header := ipv6DummyHeader{
+		srcAddr:  sourceAddr,
+		destAddr: destAddr,
+		length:   uint32(len(icmpv6Packet)),
+		protocol: uint32(IP_PROTOCOL_NUM_ICMPv6),
+	}
+	// チェックサム計算用のデータを生成
+	calcPacket := dumyv6Header.ToPacket()
+	calcPacket = append(calcPacket, icmpv6Packet...)
+
+	// チェックサムを計算
+	checksum := calcChecksum(calcPacket)
+
+	// 計算したチェックサムをセット
+	icmpv6Packet[2] = checksum[0]
+	icmpv6Packet[3] = checksum[1]
+
+	return icmpv6Packet
+
+	return b.Bytes()
 }
 
 func icmpv6Input(inputdev *netDevice, sourceAddr, destAddr [16]byte, icmpPacket []byte) {
@@ -201,7 +261,15 @@ func icmpv6Input(inputdev *netDevice, sourceAddr, destAddr [16]byte, icmpPacket 
 		payload := icmpmsg.Replyv6Packet(sourceAddr, destAddr)
 		ipv6PacketEncapsulateOutput(inputdev, sourceAddr, destAddr, payload, IP_PROTOCOL_NUM_ICMPv6)
 	case ICMPv6_TYPE_Router_Solicitation:
-
+		fmt.Println("ICMPv6 Router_Solicitation is received")
+		icmpmsg.message = icmpv6RouterSolicitation{
+			reserved: byteToUint32(icmpPacket[4:8]),
+			optnd: optNeighborDiscovery{
+				opttype: icmpPacket[9],
+				length:  icmpPacket[10],
+				options: setMacAddr(icmpPacket[10:16]),
+			},
+		}
 	case ICMPv6_TYPE_Neighbor_Solicitation:
 		fmt.Println("ICMPv6 Neighbor_Solicitation is received")
 		icmpmsg.message = icmpv6NeighborSolicitation{
@@ -210,7 +278,7 @@ func icmpv6Input(inputdev *netDevice, sourceAddr, destAddr [16]byte, icmpPacket 
 			optnd: optNeighborDiscovery{
 				opttype: icmpPacket[25],
 				length:  icmpPacket[26],
-				macaddr: setMacAddr(icmpPacket[26:32]),
+				options: setMacAddr(icmpPacket[26:32]),
 			},
 		}
 		payload := icmpmsg.ReplyNeighborAdvertisement(sourceAddr, destAddr, inputdev.macaddr)
