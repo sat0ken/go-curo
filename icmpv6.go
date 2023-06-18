@@ -43,13 +43,20 @@ type icmpv6RouterSolicitation struct {
 
 // https://tex2e.github.io/rfc-translater/html/rfc4861.html#4-2--Router-Advertisement-Message-Format
 type icmpv6RouterAdvertisement struct {
-	curhoplimit           uint8
-	flagManagedAddrConfig bool
-	flagOtherConfig       bool
-	reserved              uint8
-	lifetime              uint16
-	reachabletime         uint32
-	retranstime           uint32
+	curhoplimit   uint8
+	routerAdflags routerAdvertisementFlags
+	lifetime      uint16
+	reachabletime uint32
+	retranstime   uint32
+}
+
+type routerAdvertisementFlags struct {
+	isManagedAddrConfig      bool
+	isOtherConfig            bool
+	isMobileHomeAgent        bool // RFC3775
+	isDefaultRouterPref      bool // RFC4191
+	isNeighborDiscoveryProxy bool // RFC4389
+	reserved                 uint8
 }
 
 // https://tex2e.github.io/rfc-translater/html/rfc4861.html#4-3--Neighbor-Solicitation-Message-Format
@@ -100,18 +107,32 @@ func (na *icmpv6NeighborAdvertisement) ToPacket() []byte {
 func (ra *icmpv6RouterAdvertisement) ToPacket() []byte {
 	var b bytes.Buffer
 	b.Write([]byte{ra.curhoplimit})
-	if ra.flagManagedAddrConfig {
-		ra.reserved += 128
-	}
-	if ra.flagManagedAddrConfig {
-		ra.reserved += 64
-	}
-	b.Write([]byte{ra.reserved})
+	b.Write([]byte{ra.routerAdflags.ToPacket()})
 	b.Write(uint16ToByte(ra.lifetime))
 	b.Write(uint32ToByte(ra.reachabletime))
 	b.Write(uint32ToByte(ra.retranstime))
 
 	return b.Bytes()
+}
+
+func (rdaFlags *routerAdvertisementFlags) ToPacket() uint8 {
+	if rdaFlags.isManagedAddrConfig {
+		rdaFlags.reserved += 128
+	}
+	if rdaFlags.isOtherConfig {
+		rdaFlags.reserved += 64
+	}
+	if rdaFlags.isMobileHomeAgent {
+		rdaFlags.reserved += 32
+	}
+	// これは2bit
+	if rdaFlags.isDefaultRouterPref {
+		rdaFlags.reserved += 8
+	}
+	if rdaFlags.isNeighborDiscoveryProxy {
+		rdaFlags.reserved += 4
+	}
+	return rdaFlags.reserved
 }
 
 func (icmpmsg *icmpv6Message) Replyv6Packet(sourceAddr, destAddr [16]byte) (icmpv6Packet []byte) {
@@ -200,13 +221,18 @@ func (icmpmsg *icmpv6Message) ReplyRouterAdvertisement(sourceAddr, destAddr [16]
 	b.Write([]byte{0x00, 0x00}) // checksum
 	// Router Advertisementメッセージ
 	ra := icmpv6RouterAdvertisement{
-		curhoplimit:           255,
-		flagManagedAddrConfig: false,
-		flagOtherConfig:       false,
-		reserved:              0,
-		lifetime:              3600,
-		reachabletime:         3600,
-		retranstime:           3600,
+		curhoplimit: 255,
+		routerAdflags: routerAdvertisementFlags{
+			isManagedAddrConfig:      false,
+			isOtherConfig:            false,
+			isMobileHomeAgent:        false,
+			isDefaultRouterPref:      true,
+			isNeighborDiscoveryProxy: false,
+			reserved:                 0,
+		},
+		lifetime:      3600,
+		reachabletime: 3600,
+		retranstime:   3600,
 	}
 	b.Write(ra.ToPacket())
 	// いったんパケットデータにする
