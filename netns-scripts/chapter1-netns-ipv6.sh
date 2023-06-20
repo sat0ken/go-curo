@@ -55,7 +55,7 @@ ip netns exec router2 ethtool -K router2-host2 rx off tx off
 ip netns exec router2 sysctl -w net.ipv4.ip_forward=1
 
 # host2のリンクの設定
-ip netns exec host2 ip addr add 2001:db8:0:1::2/64 dev host2-router2
+ip netns exec host2 ip addr add 2001:db8:0:2::2/64 dev host2-router2
 ip netns exec host2 ip link set host2-router2 up
 ip netns exec host2 ethtool -K host2-router2 rx off tx off
 ip netns exec host2 ip route add default via 2001:db8:0:2::1
