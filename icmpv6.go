@@ -13,6 +13,12 @@ const (
 	ICMPv6_TYPE_Router_Advertisement   uint8 = 134
 	ICMPv6_TYPE_Neighbor_Solicitation  uint8 = 135
 	ICMPv6_TYPE_Neighbor_Advertisement uint8 = 136
+
+	// https://tex2e.github.io/rfc-translater/html/rfc4191.html
+	// 2.1. Preference Values
+	DefaultRouter_Preference_High   uint8 = 01
+	DefaultRouter_Preference_Medium uint8 = 00
+	DefaultRouter_Preference_Low    uint8 = 11
 )
 
 /*
@@ -53,9 +59,9 @@ type icmpv6RouterAdvertisement struct {
 type routerAdvertisementFlags struct {
 	isManagedAddrConfig      bool
 	isOtherConfig            bool
-	isMobileHomeAgent        bool // RFC3775
-	isDefaultRouterPref      bool // RFC4191
-	isNeighborDiscoveryProxy bool // RFC4389
+	isMobileHomeAgent        bool  // RFC3775
+	isDefaultRouterPref      uint8 // RFC4191
+	isNeighborDiscoveryProxy bool  // RFC4389
 	reserved                 uint8
 }
 
@@ -125,8 +131,8 @@ func (rdaFlags *routerAdvertisementFlags) ToPacket() uint8 {
 	if rdaFlags.isMobileHomeAgent {
 		rdaFlags.reserved += 32
 	}
-	// これは2bit
-	if rdaFlags.isDefaultRouterPref {
+	// Highだったら01なので8を足す。Mediumは00なので足す必要はない
+	if rdaFlags.isDefaultRouterPref == DefaultRouter_Preference_High {
 		rdaFlags.reserved += 8
 	}
 	if rdaFlags.isNeighborDiscoveryProxy {
@@ -221,18 +227,18 @@ func (icmpmsg *icmpv6Message) ReplyRouterAdvertisement(sourceAddr, destAddr [16]
 	b.Write([]byte{0x00, 0x00}) // checksum
 	// Router Advertisementメッセージ
 	ra := icmpv6RouterAdvertisement{
-		curhoplimit: 255,
+		curhoplimit: 64,
 		routerAdflags: routerAdvertisementFlags{
 			isManagedAddrConfig:      false,
 			isOtherConfig:            false,
 			isMobileHomeAgent:        false,
-			isDefaultRouterPref:      true,
+			isDefaultRouterPref:      DefaultRouter_Preference_Medium,
 			isNeighborDiscoveryProxy: false,
 			reserved:                 0,
 		},
-		lifetime:      3600,
-		reachabletime: 3600,
-		retranstime:   3600,
+		lifetime:      1800,
+		reachabletime: 0,
+		retranstime:   0,
 	}
 	b.Write(ra.ToPacket())
 	// いったんパケットデータにする
@@ -256,8 +262,6 @@ func (icmpmsg *icmpv6Message) ReplyRouterAdvertisement(sourceAddr, destAddr [16]
 	icmpv6Packet[3] = checksum[1]
 
 	return icmpv6Packet
-
-	return b.Bytes()
 }
 
 func icmpv6Input(inputdev *netDevice, sourceAddr, destAddr [16]byte, icmpPacket []byte) {
