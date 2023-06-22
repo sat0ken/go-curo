@@ -63,6 +63,7 @@ type routerAdvertisementFlags struct {
 	isDefaultRouterPref      uint8 // RFC4191
 	isNeighborDiscoveryProxy bool  // RFC4389
 	reserved                 uint8
+	options                  []optNeighborDiscovery
 }
 
 // https://tex2e.github.io/rfc-translater/html/rfc4861.html#4-3--Neighbor-Solicitation-Message-Format
@@ -87,6 +88,22 @@ type optNeighborDiscovery struct {
 	opttype uint8
 	length  uint8
 	options any
+}
+
+// 4.6.1. Source/Target Link-layer Address
+type optLinkLayerAddr struct {
+	macAddr [6]uint8
+}
+
+// 4.6.2. Prefix Information
+type optPrefixInfomation struct {
+	prefixLen          uint8
+	flagOnLink         bool
+	flagAutoAddrConfig bool
+	validLifetime      uint32
+	prefLifetime       uint32
+	reserved           uint32
+	prefix             [16]byte
 }
 
 func (na *icmpv6NeighborAdvertisement) ToPacket() []byte {
