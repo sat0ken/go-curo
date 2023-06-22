@@ -54,6 +54,7 @@ type icmpv6RouterAdvertisement struct {
 	lifetime      uint16
 	reachabletime uint32
 	retranstime   uint32
+	options       []optNeighborDiscovery
 }
 
 type routerAdvertisementFlags struct {
@@ -63,7 +64,6 @@ type routerAdvertisementFlags struct {
 	isDefaultRouterPref      uint8 // RFC4191
 	isNeighborDiscoveryProxy bool  // RFC4389
 	reserved                 uint8
-	options                  []optNeighborDiscovery
 }
 
 // https://tex2e.github.io/rfc-translater/html/rfc4861.html#4-3--Neighbor-Solicitation-Message-Format
@@ -246,8 +246,8 @@ func (icmpmsg *icmpv6Message) ReplyRouterAdvertisement(sourceAddr, destAddr [16]
 	ra := icmpv6RouterAdvertisement{
 		curhoplimit: 64,
 		routerAdflags: routerAdvertisementFlags{
-			isManagedAddrConfig:      false,
-			isOtherConfig:            false,
+			isManagedAddrConfig:      true,
+			isOtherConfig:            true,
 			isMobileHomeAgent:        false,
 			isDefaultRouterPref:      DefaultRouter_Preference_Medium,
 			isNeighborDiscoveryProxy: false,
@@ -256,6 +256,28 @@ func (icmpmsg *icmpv6Message) ReplyRouterAdvertisement(sourceAddr, destAddr [16]
 		lifetime:      1800,
 		reachabletime: 0,
 		retranstime:   0,
+		options: []optNeighborDiscovery{
+			// Source Link Layer Address
+			{
+				opttype: 1,
+				length:  1,
+				options: optLinkLayerAddr{macAddr: sourceMacAddr},
+			},
+			// Prefix Information
+			{
+				opttype: 3,
+				length:  4,
+				options: optPrefixInfomation{
+					prefixLen:          64,
+					flagOnLink:         true,
+					flagAutoAddrConfig: true,
+					validLifetime:      86400,
+					prefLifetime:       14400,
+					reserved:           0,
+					prefix:             [16]byte{},
+				},
+			},
+		},
 	}
 	b.Write(ra.ToPacket())
 	// いったんパケットデータにする
