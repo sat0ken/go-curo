@@ -59,3 +59,6 @@ ip netns exec host2 ip addr add 2001:db8:0:2::2/64 dev host2-router2
 ip netns exec host2 ip link set host2-router2 up
 ip netns exec host2 ethtool -K host2-router2 rx off tx off
 ip netns exec host2 ip route add default via 2001:db8:0:2::1
+
+# icmpv6を無視するように
+ip netns exec router1 sysctl net.ipv6.icmp.echo_ignore_all=1

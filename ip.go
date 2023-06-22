@@ -14,13 +14,22 @@ const IP_PROTOCOL_NUM_TCP uint8 = 0x06
 const IP_PROTOCOL_NUM_UDP uint8 = 0x11
 const IP_PROTOCOL_NUM_ICMPv6 uint8 = 0x3a
 
+type ipv6Addr struct {
+	v6address [16]byte
+	prefix    string
+}
+
+// https://budougumi0617.github.io/2019/07/07/prevent-runtime-error-by-pointer/
+type ipv6AddrList *[]ipv6Addr
+
 type ipDevice struct {
-	address   uint32   // デバイスのIPアドレス
-	addressv6 [16]byte // デバイスのIPv6アドレス
-	netmask   uint32   // サブネットマスク
-	netmaskv6 string
-	broadcast uint32    // ブロードキャストアドレス
-	natdev    natDevice // 5章で追加
+	address uint32 // デバイスのIPアドレス
+	//addressv6 [16]byte // デバイスのIPv6アドレス
+	netmask uint32 // サブネットマスク
+	//netmaskv6 string
+	ipv6AddrList ipv6AddrList
+	broadcast    uint32    // ブロードキャストアドレス
+	natdev       natDevice // 5章で追加
 }
 
 type ipHeader struct {
@@ -79,6 +88,7 @@ func (ipheader *ipHeader) ToPacket(calc bool) (ipHeaderByte []byte) {
 }
 
 func getIPdevice(addrs []net.Addr) (ipdev ipDevice) {
+	ipdev.ipv6AddrList = &[]ipv6Addr{}
 	for _, addr := range addrs {
 		ipaddrstr := addr.String()
 		// IPv4をセット
@@ -91,8 +101,10 @@ func getIPdevice(addrs []net.Addr) (ipdev ipDevice) {
 		} else {
 			// IPv6をセット
 			ip, ipnet, _ := net.ParseCIDR(ipaddrstr)
-			ipdev.addressv6 = ipv6ToByte(ip.String())
-			ipdev.netmaskv6 = ipnet.Mask.String()
+			*ipdev.ipv6AddrList = append(*ipdev.ipv6AddrList, ipv6Addr{
+				v6address: ipv6ToByte(ip.String()),
+				prefix:    ipnet.Mask.String(),
+			})
 		}
 	}
 	fmt.Printf("ipdev is %+v\n", ipdev)

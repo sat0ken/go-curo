@@ -92,10 +92,7 @@ func setipv6addr(ipv6 []byte) [16]byte {
 IPv6パケットの受信処理
 */
 func ipv6Input(inputdev *netDevice, packet []byte) {
-	// IPアドレスのついていないインターフェースからの受信は無視
-	if inputdev.ipdev.address == 0 {
-		return
-	}
+
 	// IPv6の固定長より短かったらドロップ
 	if len(packet) < 40 {
 		fmt.Printf("Received IP packet too short from %s\n", inputdev.name)
@@ -127,10 +124,12 @@ func ipv6Input(inputdev *netDevice, packet []byte) {
 		return
 	}
 	// 宛先アドレスマルチキャストアドレスか受信したNICインターフェイスのIPv6アドレスの場合
-	if bytes.Equal(ipv6header.destAddr[:], inputdev.ipdev.addressv6[:]) ||
-		bytes.HasPrefix(ipv6header.destAddr[:], solicitedNoneMultiCastAddr) {
-		// 自分宛の通信として処理
-		ipv6InputToOurs(inputdev, &ipv6header, packet[40:])
+	for _, ipv6addr := range *inputdev.ipdev.ipv6AddrList {
+		if bytes.Equal(ipv6header.destAddr[:], ipv6addr.v6address[:]) ||
+			bytes.HasPrefix(ipv6header.destAddr[:], solicitedNoneMultiCastAddr) {
+			// 自分宛の通信として処理
+			ipv6InputToOurs(inputdev, &ipv6header, packet[40:])
+		}
 	}
 }
 
