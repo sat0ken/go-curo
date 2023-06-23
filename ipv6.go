@@ -88,6 +88,15 @@ func setipv6addr(ipv6 []byte) [16]byte {
 	return b16
 }
 
+func getPrefixIpv6(ipv6, prefix [16]byte) [16]byte {
+	for i, _ := range ipv6 {
+		if prefix[i] == 00 {
+			ipv6[i] = 0x00
+		}
+	}
+	return ipv6
+}
+
 /*
 IPv6パケットの受信処理
 */
@@ -123,10 +132,10 @@ func ipv6Input(inputdev *netDevice, packet []byte) {
 		fmt.Println("packet is not IPv6")
 		return
 	}
-	// 宛先アドレスマルチキャストアドレスか受信したNICインターフェイスのIPv6アドレスの場合
+	// 宛先アドレスがマルチキャストアドレスか受信したNICインターフェイスのIPv6アドレスの場合
 	for _, ipv6addr := range *inputdev.ipdev.ipv6AddrList {
 		if bytes.Equal(ipv6header.destAddr[:], ipv6addr.v6address[:]) ||
-			bytes.HasPrefix(ipv6header.destAddr[:], solicitedNoneMultiCastAddr) {
+			bytes.HasPrefix(ipv6header.destAddr[:], []byte{0xff, 0x02}) {
 			// 自分宛の通信として処理
 			ipv6InputToOurs(inputdev, &ipv6header, packet[40:])
 		}
