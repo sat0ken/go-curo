@@ -16,7 +16,7 @@ const IP_PROTOCOL_NUM_ICMPv6 uint8 = 0x3a
 
 type ipv6Addr struct {
 	v6address [16]byte
-	prefix    string
+	prefix    [16]byte
 }
 
 // https://budougumi0617.github.io/2019/07/07/prevent-runtime-error-by-pointer/
@@ -103,7 +103,7 @@ func getIPdevice(addrs []net.Addr) (ipdev ipDevice) {
 			ip, ipnet, _ := net.ParseCIDR(ipaddrstr)
 			*ipdev.ipv6AddrList = append(*ipdev.ipv6AddrList, ipv6Addr{
 				v6address: ipv6ToByte(ip.String()),
-				prefix:    ipnet.Mask.String(),
+				prefix:    setipv6addr(strtoByte(ipnet.Mask.String())),
 			})
 		}
 	}
