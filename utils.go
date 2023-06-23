@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/binary"
+	"encoding/hex"
 	"fmt"
 	"strings"
 )
@@ -49,5 +50,10 @@ func uint16ToByte(i uint16) []byte {
 func uint32ToByte(i uint32) []byte {
 	b := make([]byte, 4)
 	binary.BigEndian.PutUint32(b, i)
+	return b
+}
+
+func strtoByte(str string) []byte {
+	b, _ := hex.DecodeString(str)
 	return b
 }
