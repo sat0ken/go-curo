@@ -112,7 +112,7 @@ func (optnd *optNeighborDiscovery) ToPacket() []byte {
 	switch optnd.opttype {
 	case 1:
 		b.Write(macToByte(optnd.options.(optLinkLayerAddr).macAddr))
-	case 2:
+	case 3:
 		var flagbyte uint8
 		prefixinfo := optnd.options.(optPrefixInfomation)
 		if prefixinfo.flagOnLink {
@@ -161,7 +161,8 @@ func (ra *icmpv6RouterAdvertisement) ToPacket() []byte {
 	b.Write(uint32ToByte(ra.retranstime))
 
 	for _, opt := range ra.options {
-		b.Write(opt.ToPacket())
+		packet := opt.ToPacket()
+		b.Write(packet)
 	}
 
 	return b.Bytes()
@@ -187,7 +188,7 @@ func (rdaFlags *routerAdvertisementFlags) ToPacket() uint8 {
 	return rdaFlags.reserved
 }
 
-func (icmpmsg *icmpv6Message) Replyv6Packet(sourceAddr, destAddr [16]byte) (icmpv6Packet []byte) {
+func (icmpmsg *icmpv6Message) ReplyEchoPacket(sourceAddr, destAddr [16]byte) (icmpv6Packet []byte) {
 	var b bytes.Buffer
 	// ICMPv6ヘッダ
 	b.Write([]byte{ICMPv6_TYPE_ECHO_REPLY})
@@ -286,12 +287,6 @@ func (icmpmsg *icmpv6Message) ReplyRouterAdvertisement(sourceAddr, destAddr, pre
 		reachabletime: 0,
 		retranstime:   0,
 		options: []optNeighborDiscovery{
-			// Source Link Layer Address
-			{
-				opttype: 1,
-				length:  1,
-				options: optLinkLayerAddr{macAddr: sourceMacAddr},
-			},
 			// Prefix Information
 			{
 				opttype: 3,
@@ -305,6 +300,12 @@ func (icmpmsg *icmpv6Message) ReplyRouterAdvertisement(sourceAddr, destAddr, pre
 					reserved:           0,
 					prefix:             prefixAddr,
 				},
+			},
+			// Source Link Layer Address
+			{
+				opttype: 1,
+				length:  1,
+				options: optLinkLayerAddr{macAddr: sourceMacAddr},
 			},
 		},
 	}
@@ -356,7 +357,7 @@ func icmpv6Input(inputdev *netDevice, sourceAddr, destAddr [16]byte, icmpPacket 
 			sequence: byteToUint16(icmpPacket[6:8]),
 			data:     icmpPacket[8:],
 		}
-		payload := icmpmsg.Replyv6Packet(sourceAddr, destAddr)
+		payload := icmpmsg.ReplyEchoPacket(sourceAddr, destAddr)
 		ipv6PacketEncapsulateOutput(inputdev, sourceAddr, destAddr, payload, IP_PROTOCOL_NUM_ICMPv6)
 	case ICMPv6_TYPE_Router_Solicitation:
 		fmt.Println("ICMPv6 Router_Solicitation is received")
@@ -367,6 +368,8 @@ func icmpv6Input(inputdev *netDevice, sourceAddr, destAddr [16]byte, icmpPacket 
 		for _, addr := range *inputdev.ipdev.ipv6AddrList {
 			if !bytes.HasPrefix(addr.v6address[:], []byte{0xfe, 0x80}) {
 				prefixAddr = getPrefixIpv6(addr.v6address, addr.prefix)
+			} else {
+				destAddr = addr.v6address
 			}
 		}
 		payload := icmpmsg.ReplyRouterAdvertisement(sourceAddr, destAddr, prefixAddr, inputdev.macaddr)

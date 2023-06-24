@@ -134,8 +134,11 @@ func ipv6Input(inputdev *netDevice, packet []byte) {
 	}
 	// 宛先アドレスがマルチキャストアドレスか受信したNICインターフェイスのIPv6アドレスの場合
 	for _, ipv6addr := range *inputdev.ipdev.ipv6AddrList {
-		if bytes.Equal(ipv6header.destAddr[:], ipv6addr.v6address[:]) ||
-			bytes.HasPrefix(ipv6header.destAddr[:], []byte{0xff, 0x02}) {
+		if bytes.Equal(ipv6header.destAddr[:], ipv6addr.v6address[:]) {
+			// 自分宛の通信として処理
+			ipv6InputToOurs(inputdev, &ipv6header, packet[40:])
+		} else if bytes.HasPrefix(ipv6header.destAddr[:], []byte{0xff, 0x02}) &&
+			bytes.HasPrefix(ipv6addr.v6address[:], []byte{0xfe, 0x80}) {
 			// 自分宛の通信として処理
 			ipv6InputToOurs(inputdev, &ipv6header, packet[40:])
 		}
@@ -174,7 +177,7 @@ func ipv6PacketEncapsulateOutput(inputdev *netDevice, destAddr, srcAddr [16]byte
 		flowLabel:    FLOW_LABEL,
 		headerLen:    uint16(len(payload)),
 		nextHeader:   protocolType,
-		hoplimit:     64,
+		hoplimit:     255,
 		srcAddr:      srcAddr,
 		destAddr:     destAddr,
 	}
