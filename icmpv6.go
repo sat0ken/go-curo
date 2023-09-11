@@ -42,13 +42,13 @@ type icmpv6Message struct {
 }
 
 // https://tex2e.github.io/rfc-translater/html/rfc4861.html#4-1--Router-Solicitation-Message-Format
-type icmpv6RouterSolicitation struct {
+type routerSolicitation struct {
 	reserved uint32
 	optnd    optNeighborDiscovery
 }
 
 // https://tex2e.github.io/rfc-translater/html/rfc4861.html#4-2--Router-Advertisement-Message-Format
-type icmpv6RouterAdvertisement struct {
+type routerAdvertisement struct {
 	curhoplimit   uint8
 	routerAdflags routerAdvertisementFlags
 	lifetime      uint16
@@ -67,14 +67,14 @@ type routerAdvertisementFlags struct {
 }
 
 // https://tex2e.github.io/rfc-translater/html/rfc4861.html#4-3--Neighbor-Solicitation-Message-Format
-type icmpv6NeighborSolicitation struct {
+type neighborSolicitation struct {
 	reserved   uint32
 	targetAddr [16]byte
 	optnd      optNeighborDiscovery
 }
 
 // https://tex2e.github.io/rfc-translater/html/rfc4861.html#4-4--Neighbor-Advertisement-Message-Format
-type icmpv6NeighborAdvertisement struct {
+type neighborAdvertisement struct {
 	flagRouter    bool
 	flagSolicited bool
 	flagOverRide  bool
@@ -131,7 +131,7 @@ func (optnd *optNeighborDiscovery) ToPacket() []byte {
 	return b.Bytes()
 }
 
-func (na *icmpv6NeighborAdvertisement) ToPacket() []byte {
+func (na *neighborAdvertisement) ToPacket() []byte {
 	var b bytes.Buffer
 	flagsbytes := uint32ToByte(na.reserved)
 	if na.flagRouter {
@@ -152,7 +152,7 @@ func (na *icmpv6NeighborAdvertisement) ToPacket() []byte {
 	return b.Bytes()
 }
 
-func (ra *icmpv6RouterAdvertisement) ToPacket() []byte {
+func (ra *routerAdvertisement) ToPacket() []byte {
 	var b bytes.Buffer
 	b.Write([]byte{ra.curhoplimit})
 	b.Write([]byte{ra.routerAdflags.ToPacket()})
@@ -230,12 +230,12 @@ func (icmpmsg *icmpv6Message) ReplyNeighborAdvertisement(sourceAddr, destAddr [1
 	b.Write([]byte{0x00})       // icmp code
 	b.Write([]byte{0x00, 0x00}) // checksum
 	// Neighbor Advertisementメッセージ
-	na := icmpv6NeighborAdvertisement{
+	na := neighborAdvertisement{
 		flagRouter:    false,
 		flagSolicited: true,
 		flagOverRide:  true,
 		reserved:      0,
-		targetAddr:    icmpmsg.message.(icmpv6NeighborSolicitation).targetAddr,
+		targetAddr:    icmpmsg.message.(neighborSolicitation).targetAddr,
 		optnd: optNeighborDiscovery{
 			opttype: 2,
 			length:  1,
@@ -273,7 +273,7 @@ func (icmpmsg *icmpv6Message) ReplyRouterAdvertisement(sourceAddr, destAddr, pre
 	b.Write([]byte{0x00})       // icmp code
 	b.Write([]byte{0x00, 0x00}) // checksum
 	// Router Advertisementメッセージ
-	ra := icmpv6RouterAdvertisement{
+	ra := routerAdvertisement{
 		curhoplimit: 64,
 		routerAdflags: routerAdvertisementFlags{
 			isManagedAddrConfig:      true,
@@ -362,7 +362,7 @@ func icmpv6Input(inputdev *netDevice, sourceAddr, destAddr [16]byte, icmpPacket 
 	case ICMPv6_TYPE_Router_Solicitation:
 		fmt.Println("ICMPv6 Router_Solicitation is received")
 		var prefixAddr [16]byte
-		icmpmsg.message = icmpv6RouterSolicitation{
+		icmpmsg.message = routerSolicitation{
 			reserved: byteToUint32(icmpPacket[4:8]),
 		}
 		for _, addr := range *inputdev.ipdev.ipv6AddrList {
@@ -377,7 +377,7 @@ func icmpv6Input(inputdev *netDevice, sourceAddr, destAddr [16]byte, icmpPacket 
 		ipv6PacketEncapsulateOutput(inputdev, sourceAddr, destAddr, payload, IP_PROTOCOL_NUM_ICMPv6)
 	case ICMPv6_TYPE_Neighbor_Solicitation:
 		fmt.Println("ICMPv6 Neighbor_Solicitation is received")
-		icmpmsg.message = icmpv6NeighborSolicitation{
+		icmpmsg.message = neighborSolicitation{
 			reserved:   byteToUint32(icmpPacket[4:8]),
 			targetAddr: setipv6addr(icmpPacket[8:24]),
 			optnd: optNeighborDiscovery{
