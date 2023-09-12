@@ -131,6 +131,15 @@ func (optnd *optNeighborDiscovery) ToPacket() []byte {
 	return b.Bytes()
 }
 
+func (ns *neighborSolicitation) ToPacket() []byte {
+	var b bytes.Buffer
+	b.Write(uint32ToByte(ns.reserved))
+	b.Write(ns.targetAddr[:])
+	b.Write(ns.optnd.ToPacket())
+
+	return b.Bytes()
+}
+
 func (na *neighborAdvertisement) ToPacket() []byte {
 	var b bytes.Buffer
 	flagsbytes := uint32ToByte(na.reserved)
@@ -333,6 +342,46 @@ func (icmpmsg *icmpv6Message) ReplyRouterAdvertisement(sourceAddr, destAddr, pre
 	return icmpv6Packet
 }
 
+func (icmpmsg *icmpv6Message) ReplyNeighborSolicitation(sourceAddr, destAddr [16]byte, sourceMacAddr [6]uint8) (icmpv6Packet []byte) {
+	var b bytes.Buffer
+	// ICMPv6ヘッダ
+	b.Write([]byte{ICMPv6_TYPE_Neighbor_Solicitation})
+	b.Write([]byte{0x00})       // icmp code
+	b.Write([]byte{0x00, 0x00}) // checksum
+	// Neighbor Solicitationメッセージ
+	ns := neighborSolicitation{
+		reserved:   0,
+		targetAddr: destAddr,
+		optnd: optNeighborDiscovery{
+			opttype: 1,
+			length:  1,
+			options: setMacAddr(sourceMacAddr[:]),
+		},
+	}
+	b.Write(ns.ToPacket())
+	// いったんパケットデータにする
+	icmpv6Packet = b.Bytes()
+	// IPv6ダミーヘッダをセット
+	dumyv6Header := ipv6DummyHeader{
+		srcAddr:  sourceAddr,
+		destAddr: destAddr,
+		length:   uint32(len(icmpv6Packet)),
+		protocol: uint32(IP_PROTOCOL_NUM_ICMPv6),
+	}
+	// チェックサム計算用のデータを生成
+	calcPacket := dumyv6Header.ToPacket()
+	calcPacket = append(calcPacket, icmpv6Packet...)
+
+	// チェックサムを計算
+	checksum := calcChecksum(calcPacket)
+
+	// 計算したチェックサムをセット
+	icmpv6Packet[2] = checksum[0]
+	icmpv6Packet[3] = checksum[1]
+
+	return icmpv6Packet
+}
+
 func icmpv6Input(inputdev *netDevice, sourceAddr, destAddr [16]byte, icmpPacket []byte) {
 	// ICMPメッセージ長より短かったら
 	if len(icmpPacket) < 4 {
@@ -389,4 +438,31 @@ func icmpv6Input(inputdev *netDevice, sourceAddr, destAddr [16]byte, icmpPacket 
 		payload := icmpmsg.ReplyNeighborAdvertisement(sourceAddr, destAddr, inputdev.macaddr)
 		ipv6PacketEncapsulateOutput(inputdev, sourceAddr, destAddr, payload, IP_PROTOCOL_NUM_ICMPv6)
 	}
+}
+
+func sendNeighborSolicitation(netdev *netDevice, ipv6 ipv6Header) {
+	var ipv6Packet []byte
+
+	fmt.Printf("Sending arp request via %s for %x\n", netdev.name, ipv6.destAddr)
+	icmpmsg := icmpv6Message{
+		icmpType: ICMPv6_TYPE_Neighbor_Solicitation,
+		icmpCode: 0,
+		message: neighborSolicitation{
+			reserved:   0,
+			targetAddr: ipv6.destAddr,
+			optnd: optNeighborDiscovery{
+				opttype: 1,
+				length:  1,
+				options: setMacAddr(netdev.macaddr[:]),
+			},
+		},
+	}
+	// IPv6ヘッダをパケットにする
+	ipv6Packet = append(ipv6Packet, ipv6.ToPacket()...)
+	// payloadを追加
+	payload := icmpmsg.ReplyNeighborSolicitation(ipv6.srcAddr, ipv6.destAddr, netdev.macaddr)
+	ipv6Packet = append(ipv6Packet, payload...)
+	// ethernetでカプセル化して送信
+	destMacAddr := [6]uint8{0x33, 0x33, 0xff, ipv6.destAddr[13], ipv6.destAddr[14], ipv6.destAddr[15]}
+	ethernetOutput(netdev, destMacAddr, payload, ETHER_TYPE_IPV6)
 }

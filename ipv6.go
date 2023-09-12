@@ -193,7 +193,7 @@ func ipv6PacketEncapsulateOutput(inputdev *netDevice, destAddr, srcAddr [16]byte
 		ethernetOutput(inputdev, destMacAddr, ipv6Packet, ETHER_TYPE_IPV6)
 	} else {
 		// Todo: 近隣探索のパケットを出す
-		fmt.Printf("destMacAddr %s is nil...\n", printMacAddr(destMacAddr))
+		sendNeighborSolicitation(inputdev, ipv6)
 	}
 
 }
