@@ -54,9 +54,10 @@ const (
 )
 
 type ipRouteEntry struct {
-	iptype  ipRouteType
-	netdev  *netDevice
-	nexthop uint32
+	iptype    ipRouteType
+	netdev    *netDevice
+	nexthop   uint32
+	nexthopv6 [16]byte
 }
 
 func (ipheader *ipHeader) ToPacket(calc bool) (ipHeaderByte []byte) {

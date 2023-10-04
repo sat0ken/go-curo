@@ -62,3 +62,58 @@ func (node *radixTreeNode) radixTreeSearch(prefixIpAddr uint32) ipRouteEntry {
 	}
 	return result
 }
+
+func (node *radixTreeNode) radixTreeAddv6(prefixIpAddr uint64, prefixLen uint32, entryData ipRouteEntry) {
+	// ルートノードから辿る
+	current := node
+	// 枝を辿る
+	for i := 1; i <= int(prefixLen); i++ {
+		if prefixIpAddr>>(64-i)&0x01 == 1 { // 上からiビット目が1なら
+			if current.node1 == nil {
+				current.node1 = &radixTreeNode{
+					parent: current,
+					depth:  i,
+					value:  0,
+				}
+			}
+			current = current.node1
+		} else { // 上からiビット目が0なら
+			// 辿る先の枝がなかったら作る
+			if current.node0 == nil {
+				current.node0 = &radixTreeNode{
+					parent: current,
+					depth:  i,
+					value:  0,
+				}
+			}
+			current = current.node0
+		}
+	}
+	// 最後にデータをセット
+	current.data = entryData
+}
+
+func (node *radixTreeNode) radixTreeSearchv6(prefixIpAddr uint64) ipRouteEntry {
+	current := node
+	var result ipRouteEntry
+	// 検索するIPアドレスと比較して1ビットずつ辿っていく
+	for i := 1; i <= 65; i++ {
+		if current.data != (ipRouteEntry{}) {
+			result = current.data
+			break
+		}
+		if prefixIpAddr>>(64-i)&0x01 == 1 { // 上からiビット目が1だったら
+			if current.node1 == nil {
+				return result
+			}
+			current = current.node1
+		} else { // iビット目が0だったら
+			if current.node0 == nil {
+				return result
+			}
+			current = current.node0
+		}
+	}
+
+	return result
+}
