@@ -14,22 +14,20 @@ const IP_PROTOCOL_NUM_TCP uint8 = 0x06
 const IP_PROTOCOL_NUM_UDP uint8 = 0x11
 const IP_PROTOCOL_NUM_ICMPv6 uint8 = 0x3a
 
+// https://budougumi0617.github.io/2019/07/07/prevent-runtime-error-by-pointer/
+type ipv6AddrList *[]ipv6Addr
+
 type ipv6Addr struct {
 	v6address [16]byte
 	prefix    [16]byte
 }
 
-// https://budougumi0617.github.io/2019/07/07/prevent-runtime-error-by-pointer/
-type ipv6AddrList *[]ipv6Addr
-
 type ipDevice struct {
-	address uint32 // デバイスのIPアドレス
-	//addressv6 [16]byte // デバイスのIPv6アドレス
-	netmask uint32 // サブネットマスク
-	//netmaskv6 string
-	ipv6AddrList ipv6AddrList
-	broadcast    uint32    // ブロードキャストアドレス
-	natdev       natDevice // 5章で追加
+	address      uint32       // デバイスのIPアドレス
+	netmask      uint32       // サブネットマスク
+	ipv6AddrList ipv6AddrList // IPv6対応で追加
+	broadcast    uint32       // ブロードキャストアドレス
+	natdev       natDevice    // 5章で追加
 }
 
 type ipHeader struct {
