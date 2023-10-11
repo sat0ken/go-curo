@@ -6,6 +6,8 @@ if [ $UID -ne 0 ]; then
   exit 1;
 fi
 
+FLAG=$1
+
 # 全てのnetnsを削除
 ip -all netns delete
 
@@ -52,9 +54,11 @@ ip netns exec router1 ethtool -K router1-router2 rx off tx off
 ip netns exec router1 ip addr add 2001:db8:0:3::1/64 dev router1-router3
 ip netns exec router1 ip link set router1-router3 up
 ip netns exec router1 ethtool -K router1-router3 rx off tx off
-# router1でroutingの設定
-ip netns exec router1 ip route add 2001:db8:0:2::1/64 via 2001:db8::2
-ip netns exec router1 ip route add 2001:db8:0:4::1/64 via 2001:db8:0:3::2
+# routerを起動しない場合はroutingの設定
+if [ "$FLAG" == "" ]; then
+  ip netns exec router1 ip route add 2001:db8:0:2::1/64 via 2001:db8::2
+  ip netns exec router1 ip route add 2001:db8:0:4::1/64 via 2001:db8:0:3::2
+fi
 
 # router2のリンクの設定
 ip netns exec router2 ip addr add 2001:db8::2/64 dev router2-router1
@@ -86,9 +90,11 @@ ip netns exec host3 ip link set host3-router3 up
 ip netns exec host3 ethtool -K host3-router3 rx off tx off
 ip netns exec host3 ip route add default via 2001:db8:0:4::1
 
-# icmpv6を無視するように
-#ip netns exec router1 sysctl net.ipv6.icmp.echo_ignore_all=1
-# router1のipv6フォワードを無効にする
-ip netns exec router1 sysctl -w net.ipv6.conf.all.forwarding=1
+
+# routerを起動する場合はipv6フォワードを無効にする
+if [ "$FLAG" == "-router" ]; then
+  ip netns exec router1 sysctl -w net.ipv6.icmp.echo_ignore_all=1
+  ip netns exec router1 sysctl -w net.ipv6.conf.all.forwarding=0
+fi
 ip netns exec router2 sysctl -w net.ipv6.conf.all.forwarding=1
 ip netns exec router3 sysctl -w net.ipv6.conf.all.forwarding=1
