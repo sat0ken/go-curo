@@ -38,7 +38,6 @@ ip netns exec router1 ip addr add 2001:db8:0:2::1/64 dev router1-host2
 ip netns exec router1 ip link set router1-host2 up
 ip netns exec router1 ethtool -K router1-router2 rx off tx off
 #ip netns exec router1 ip route add 2001:db8::1/64 via 2001:db8::2
-ip netns exec router1 sysctl -w net.ipv6.conf.all.forwarding=1
 
 # host2のリンクの設定
 ip netns exec host2 ip addr add 2001:db8:0:2::2/64 dev host2-router1
@@ -46,5 +45,6 @@ ip netns exec host2 ip link set host2-router1 up
 ip netns exec host2 ethtool -K host2-router1 rx off tx off
 ip netns exec host2 ip route add default via 2001:db8:0:2::1
 
-# icmpv6を無視するように
-ip netns exec router1 sysctl net.ipv6.icmp.echo_ignore_all=1
+# icmpv6と転送を無視
+#ip netns exec router1 sysctl net.ipv6.icmp.echo_ignore_all=1
+#ip netns exec router1 sysctl -w net.ipv6.conf.all.forwarding=1
