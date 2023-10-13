@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
 	"log"
 	"net"
@@ -29,7 +30,7 @@ func runChapter2(mode string) {
 	// 192.168.2.0/24の経路の登録
 	iproute.radixTreeAdd(0xc0a80202&0xffffff00, 24, routeEntryTohost2)
 	// 2001:db8:0:2::/64の経路の登録
-	iproute.radixTreeAddv6(0x20010db800000000, 64, routeEntryIpv6Tohost2)
+	iproute.radixTreeAddv6(0x20010db800000002, 64, routeEntryIpv6Tohost2)
 
 	// epoll作成
 	events := make([]syscall.EpollEvent, 10)
@@ -93,8 +94,20 @@ func runChapter2(mode string) {
 				fmt.Printf("Set directly connected route %s/%d via %s\n",
 					printIPAddr(netdev.ipdev.address&netdev.ipdev.netmask), prefixLen, netdev.name)
 			} else {
-				//Todo: IPv6のセットが必要
-				fmt.Printf("%+v\n", netdev.ipdev.ipv6AddrList)
+				for i := 0; i < len(*netdev.ipdev.ipv6AddrList); i++ {
+					// グローバルユニキャストアドレスであれば
+					if !bytes.HasPrefix((*netdev.ipdev.ipv6AddrList)[i].v6address[:], []byte{0xfe, 0x80}) {
+						prefixIPv6 := byteToUint64((*netdev.ipdev.ipv6AddrList)[i].v6address[0:8])
+						// 直接接続ネットワークの経路をルートテーブルのエントリに設定
+						routeEntry := ipRouteEntry{
+							iptype: connected,
+							netdev: &netdev,
+						}
+						iproute.radixTreeAddv6(prefixIPv6, 64, routeEntry)
+						fmt.Printf("Set directly connected route %x via %s\n",
+							(*netdev.ipdev.ipv6AddrList)[i].v6address[0:8], netdev.name)
+					}
+				}
 			}
 
 			// netDevice構造体を作成

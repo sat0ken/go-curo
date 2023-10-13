@@ -143,6 +143,29 @@ func ipv6Input(inputdev *netDevice, packet []byte) {
 			ipv6InputToOurs(inputdev, &ipv6header, packet[40:])
 		}
 	}
+
+	// ipv6本 5章で追加
+	// 宛先IPアドレスがルータの持っているIPアドレスでない場合はフォワーディングを行う
+	route := iproute.radixTreeSearchv6(byteToUint64(ipv6header.destAddr[0:8])) // ルーティングテーブルをルックアップ
+	if route == (ipRouteEntry{}) {
+		// 宛先までの経路がなかったらパケットを破棄
+		fmt.Printf("このIPへの経路がありません : %x\n", ipv6header.destAddr)
+		return
+	}
+	// hop limitが0ならパケットを廃棄
+	if ipv6header.hoplimit == 0 {
+		return
+	}
+	// hop limitを1減らす
+	ipv6header.hoplimit -= 1
+	// パケットを再生成
+	forwardPacket := ipv6header.ToPacket()
+	// パケットを転送
+	if route.iptype == connected { // 直接接続ネットワークの経路なら
+		ipv6PacketOutputToHost(route.netdev, ipv6header, forwardPacket)
+	} else { // 直接接続ネットワークの経路ではなかったら
+
+	}
 }
 
 /*
@@ -192,8 +215,45 @@ func ipv6PacketEncapsulateOutput(inputdev *netDevice, destAddr, srcAddr [16]byte
 		// ARPテーブルに送信するIPアドレスのMACアドレスがあれば送信
 		ethernetOutput(inputdev, destMacAddr, ipv6Packet, ETHER_TYPE_IPV6)
 	} else {
-		// Todo: 近隣探索のパケットを出す
+		// 近隣探索のリクエストを出す
 		sendNeighborSolicitation(inputdev, ipv6)
 	}
 
+}
+
+/*
+IPパケットを直接イーサネットでホストに送信
+*/
+func ipv6PacketOutputToHost(dev *netDevice, ipv6 ipv6Header, packet []byte) {
+	// ARPテーブルの検索
+	destMacAddr, _ := searchArpTableEntry(ipv6.destAddr)
+	if destMacAddr == [6]uint8{0, 0, 0, 0, 0, 0} {
+		// ARPリクエストを送信
+		sendNeighborSolicitation(dev, ipv6)
+	} else {
+		// ARPエントリがあり、MACアドレスが得られたらイーサネットでカプセル化して送信
+		ethernetOutput(dev, destMacAddr, packet, ETHER_TYPE_IPV6)
+	}
+}
+
+/*
+IPv6パケットをNextHopに送信
+*/
+func ipv6PacketOutputToNetxhop(nexthopv6 [16]byte, ipv6 ipv6Header, packet []byte) {
+	// ARPテーブルの検索
+	destMacAddr, dev := searchArpTableEntry(nexthopv6)
+	if destMacAddr == [6]uint8{0, 0, 0, 0, 0, 0} {
+		// ルーティングテーブルのルックアップ
+		routeToNexthopIPv6 := iproute.radixTreeSearchv6(byteToUint64(nexthopv6[0:8]))
+		if routeToNexthopIPv6 == (ipRouteEntry{}) || routeToNexthopIPv6.iptype != connected {
+			// next hopへの到達性が無かったら
+			fmt.Printf("Next hop %x is not reachable\n", nexthopv6)
+		} else {
+			// 近隣探索のリクエストを出す
+			sendNeighborSolicitation(routeToNexthopIPv6.netdev, ipv6)
+		}
+	} else {
+		// ARPエントリがあり、MACアドレスが得られたらイーサネットでカプセル化して送信
+		ethernetOutput(dev, destMacAddr, packet, ETHER_TYPE_IPV6)
+	}
 }
