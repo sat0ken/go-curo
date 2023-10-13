@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bytes"
 	"fmt"
 	"log"
 	"net"
@@ -96,17 +95,17 @@ func runChapter2(mode string) {
 			} else {
 				for i := 0; i < len(*netdev.ipdev.ipv6AddrList); i++ {
 					// グローバルユニキャストアドレスであれば
-					if !bytes.HasPrefix((*netdev.ipdev.ipv6AddrList)[i].v6address[:], []byte{0xfe, 0x80}) {
-						prefixIPv6 := byteToUint64((*netdev.ipdev.ipv6AddrList)[i].v6address[0:8])
-						// 直接接続ネットワークの経路をルートテーブルのエントリに設定
-						routeEntry := ipRouteEntry{
-							iptype: connected,
-							netdev: &netdev,
-						}
-						iproute.radixTreeAddv6(prefixIPv6, 64, routeEntry)
-						fmt.Printf("Set directly connected route %x via %s\n",
-							(*netdev.ipdev.ipv6AddrList)[i].v6address[0:8], netdev.name)
+					//if !bytes.HasPrefix((*netdev.ipdev.ipv6AddrList)[i].v6address[:], []byte{0xfe, 0x80}) {
+					prefixIPv6 := byteToUint64((*netdev.ipdev.ipv6AddrList)[i].v6address[0:8])
+					// 直接接続ネットワークの経路をルートテーブルのエントリに設定
+					routeEntry := ipRouteEntry{
+						iptype: connected,
+						netdev: &netdev,
 					}
+					iproute.radixTreeAddv6(prefixIPv6, 64, routeEntry)
+					fmt.Printf("Set directly connected route %x via %s\n",
+						(*netdev.ipdev.ipv6AddrList)[i].v6address[0:8], netdev.name)
+					//}
 				}
 			}
 

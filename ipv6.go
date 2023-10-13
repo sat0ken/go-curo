@@ -160,8 +160,10 @@ func ipv6Input(inputdev *netDevice, packet []byte) {
 	ipv6header.hoplimit -= 1
 	// パケットを再生成
 	forwardPacket := ipv6header.ToPacket()
+	forwardPacket = append(forwardPacket, packet[40:]...)
 	// パケットを転送
 	if route.iptype == connected { // 直接接続ネットワークの経路なら
+		//fmt.Printf("直接接続ネットワークの経路なら %x\n", ipv6header.destAddr)
 		ipv6PacketOutputToHost(route.netdev, ipv6header, forwardPacket)
 	} else { // 直接接続ネットワークの経路ではなかったら
 
@@ -232,6 +234,9 @@ func ipv6PacketOutputToHost(dev *netDevice, ipv6 ipv6Header, packet []byte) {
 		sendNeighborSolicitation(dev, ipv6)
 	} else {
 		// ARPエントリがあり、MACアドレスが得られたらイーサネットでカプセル化して送信
+		// IPv6ヘッダをパケットにする
+		ipv6Packet := ipv6.ToPacket()
+		ipv6Packet = append(ipv6Packet, packet...)
 		ethernetOutput(dev, destMacAddr, packet, ETHER_TYPE_IPV6)
 	}
 }

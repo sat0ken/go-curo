@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
 	"syscall"
 )
@@ -31,7 +32,7 @@ func htons(i uint16) uint16 {
 }
 
 // ネットデバイスの送信処理
-func (netdev netDevice) netDeviceTransmit(data []byte) error {
+func (netdev *netDevice) netDeviceTransmit(data []byte) error {
 	err := syscall.Sendto(netdev.socket, data, 0, &netdev.sockaddr)
 	if err != nil {
 		return err
@@ -69,4 +70,15 @@ func getnetDeviceByName(name string) *netDevice {
 		}
 	}
 	return &netDevice{}
+}
+
+func (netdev *netDevice) getIPv6Addr(linkLocal bool) (ipv6addr [16]byte) {
+	for i := 0; i < len(*netdev.ipdev.ipv6AddrList); i++ {
+		if !bytes.HasPrefix((*netdev.ipdev.ipv6AddrList)[i].v6address[:], []byte{0xfe, 0x80}) {
+			ipv6addr = (*netdev.ipdev.ipv6AddrList)[i].v6address
+		} else {
+			ipv6addr = (*netdev.ipdev.ipv6AddrList)[i].v6address
+		}
+	}
+	return ipv6addr
 }

@@ -21,6 +21,8 @@ const (
 	DefaultRouter_Preference_Low    uint8 = 11
 )
 
+var neighborSolicitaionSourceAddr = [16]byte{0xff, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0xff, 0x00, 0x00, 0x02}
+
 /*
 https://tex2e.github.io/rfc-translater/html/rfc4443.html
 2.1. Message General Format
@@ -111,7 +113,7 @@ func (optnd *optNeighborDiscovery) ToPacket() []byte {
 	b.Write([]byte{optnd.opttype, optnd.length})
 	switch optnd.opttype {
 	case 1:
-		b.Write(macToByte(optnd.options.(optLinkLayerAddr).macAddr))
+		b.Write(macToByte(optnd.options.([6]uint8)))
 	case 3:
 		var flagbyte uint8
 		prefixinfo := optnd.options.(optPrefixInfomation)
@@ -364,7 +366,7 @@ func (icmpmsg *icmpv6Message) ReplyNeighborSolicitation(sourceAddr, destAddr [16
 	// IPv6ダミーヘッダをセット
 	dumyv6Header := ipv6DummyHeader{
 		srcAddr:  sourceAddr,
-		destAddr: destAddr,
+		destAddr: neighborSolicitaionSourceAddr,
 		length:   uint32(len(icmpv6Packet)),
 		protocol: uint32(IP_PROTOCOL_NUM_ICMPv6),
 	}
@@ -443,7 +445,7 @@ func icmpv6Input(inputdev *netDevice, sourceAddr, destAddr [16]byte, icmpPacket 
 func sendNeighborSolicitation(netdev *netDevice, ipv6 ipv6Header) {
 	var ipv6Packet []byte
 
-	fmt.Printf("Sending arp request via %s for %x\n", netdev.name, ipv6.destAddr)
+	fmt.Printf("Sending NeighborSolicitation via %s for %x\n", netdev.name, ipv6.destAddr)
 	icmpmsg := icmpv6Message{
 		icmpType: ICMPv6_TYPE_Neighbor_Solicitation,
 		icmpCode: 0,
@@ -457,12 +459,16 @@ func sendNeighborSolicitation(netdev *netDevice, ipv6 ipv6Header) {
 			},
 		},
 	}
-	// IPv6ヘッダをパケットにする
-	ipv6Packet = append(ipv6Packet, ipv6.ToPacket()...)
+	ipv6.srcAddr = netdev.getIPv6Addr(true)
 	// payloadを追加
 	payload := icmpmsg.ReplyNeighborSolicitation(ipv6.srcAddr, ipv6.destAddr, netdev.macaddr)
+	// IPv6ヘッダをパケットにする
+	ipv6.hoplimit = 255
+	ipv6.headerLen = uint16(len(payload))
+	ipv6.destAddr = neighborSolicitaionSourceAddr
+	ipv6Packet = append(ipv6Packet, ipv6.ToPacket()...)
 	ipv6Packet = append(ipv6Packet, payload...)
 	// ethernetでカプセル化して送信
 	destMacAddr := [6]uint8{0x33, 0x33, 0xff, ipv6.destAddr[13], ipv6.destAddr[14], ipv6.destAddr[15]}
-	ethernetOutput(netdev, destMacAddr, payload, ETHER_TYPE_IPV6)
+	ethernetOutput(netdev, destMacAddr, ipv6Packet, ETHER_TYPE_IPV6)
 }
