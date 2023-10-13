@@ -54,9 +54,9 @@ ip netns exec router1 ethtool -K router1-router2 rx off tx off
 ip netns exec router1 ip addr add 2001:db8:0:3::1/64 dev router1-router3
 ip netns exec router1 ip link set router1-router3 up
 ip netns exec router1 ethtool -K router1-router3 rx off tx off
+ip netns exec router1 ip route add 2001:db8:0:2::1/64 via 2001:db8::2
 # routerを起動しない場合はroutingの設定
 if [ "$FLAG" == "" ]; then
-  ip netns exec router1 ip route add 2001:db8:0:2::1/64 via 2001:db8::2
   ip netns exec router1 ip route add 2001:db8:0:4::1/64 via 2001:db8:0:3::2
 fi
 
@@ -95,6 +95,8 @@ ip netns exec host3 ip route add default via 2001:db8:0:4::1
 if [ "$FLAG" == "-router" ]; then
   ip netns exec router1 sysctl -w net.ipv6.icmp.echo_ignore_all=1
   ip netns exec router1 sysctl -w net.ipv6.conf.all.forwarding=0
+else
+  ip netns exec router1 sysctl -w net.ipv6.conf.all.forwarding=1
 fi
 ip netns exec router2 sysctl -w net.ipv6.conf.all.forwarding=1
 ip netns exec router3 sysctl -w net.ipv6.conf.all.forwarding=1
