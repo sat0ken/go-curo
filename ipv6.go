@@ -163,10 +163,9 @@ func ipv6Input(inputdev *netDevice, packet []byte) {
 	forwardPacket = append(forwardPacket, packet[40:]...)
 	// パケットを転送
 	if route.iptype == connected { // 直接接続ネットワークの経路なら
-		//fmt.Printf("直接接続ネットワークの経路なら %x\n", ipv6header.destAddr)
 		ipv6PacketOutputToHost(route.netdev, ipv6header, forwardPacket)
 	} else { // 直接接続ネットワークの経路ではなかったら
-
+		ipv6PacketOutputToNetxhop(route.nexthopv6, ipv6header, forwardPacket)
 	}
 }
 
@@ -220,7 +219,6 @@ func ipv6PacketEncapsulateOutput(inputdev *netDevice, destAddr, srcAddr [16]byte
 		// 近隣探索のリクエストを出す
 		sendNeighborSolicitation(inputdev, ipv6)
 	}
-
 }
 
 /*
@@ -234,9 +232,6 @@ func ipv6PacketOutputToHost(dev *netDevice, ipv6 ipv6Header, packet []byte) {
 		sendNeighborSolicitation(dev, ipv6)
 	} else {
 		// ARPエントリがあり、MACアドレスが得られたらイーサネットでカプセル化して送信
-		// IPv6ヘッダをパケットにする
-		ipv6Packet := ipv6.ToPacket()
-		ipv6Packet = append(ipv6Packet, packet...)
 		ethernetOutput(dev, destMacAddr, packet, ETHER_TYPE_IPV6)
 	}
 }
@@ -247,6 +242,7 @@ IPv6パケットをNextHopに送信
 func ipv6PacketOutputToNetxhop(nexthopv6 [16]byte, ipv6 ipv6Header, packet []byte) {
 	// ARPテーブルの検索
 	destMacAddr, dev := searchArpTableEntry(nexthopv6)
+	fmt.Printf("destMacAddr is %x\n", destMacAddr)
 	if destMacAddr == [6]uint8{0, 0, 0, 0, 0, 0} {
 		// ルーティングテーブルのルックアップ
 		routeToNexthopIPv6 := iproute.radixTreeSearchv6(byteToUint64(nexthopv6[0:8]))
@@ -255,6 +251,7 @@ func ipv6PacketOutputToNetxhop(nexthopv6 [16]byte, ipv6 ipv6Header, packet []byt
 			fmt.Printf("Next hop %x is not reachable\n", nexthopv6)
 		} else {
 			// 近隣探索のリクエストを出す
+			ipv6.destAddr = nexthopv6
 			sendNeighborSolicitation(routeToNexthopIPv6.netdev, ipv6)
 		}
 	} else {

@@ -113,7 +113,7 @@ func (optnd *optNeighborDiscovery) ToPacket() []byte {
 	b.Write([]byte{optnd.opttype, optnd.length})
 	switch optnd.opttype {
 	case 1:
-		b.Write(macToByte(optnd.options.([6]uint8)))
+		b.Write(macToByte(optnd.options.(optLinkLayerAddr).macAddr))
 	case 3:
 		var flagbyte uint8
 		prefixinfo := optnd.options.(optPrefixInfomation)
@@ -357,7 +357,7 @@ func (icmpmsg *icmpv6Message) ReplyNeighborSolicitation(sourceAddr, destAddr [16
 		optnd: optNeighborDiscovery{
 			opttype: 1,
 			length:  1,
-			options: setMacAddr(sourceMacAddr[:]),
+			options: optLinkLayerAddr{macAddr: sourceMacAddr},
 		},
 	}
 	b.Write(ns.ToPacket())

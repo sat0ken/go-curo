@@ -95,7 +95,6 @@ func runChapter2(mode string) {
 			} else {
 				for i := 0; i < len(*netdev.ipdev.ipv6AddrList); i++ {
 					// グローバルユニキャストアドレスであれば
-					//if !bytes.HasPrefix((*netdev.ipdev.ipv6AddrList)[i].v6address[:], []byte{0xfe, 0x80}) {
 					prefixIPv6 := byteToUint64((*netdev.ipdev.ipv6AddrList)[i].v6address[0:8])
 					// 直接接続ネットワークの経路をルートテーブルのエントリに設定
 					routeEntry := ipRouteEntry{
@@ -105,7 +104,6 @@ func runChapter2(mode string) {
 					iproute.radixTreeAddv6(prefixIPv6, 64, routeEntry)
 					fmt.Printf("Set directly connected route %x via %s\n",
 						(*netdev.ipdev.ipv6AddrList)[i].v6address[0:8], netdev.name)
-					//}
 				}
 			}
 
