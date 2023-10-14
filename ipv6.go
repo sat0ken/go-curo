@@ -144,7 +144,7 @@ func ipv6Input(inputdev *netDevice, packet []byte) {
 		}
 	}
 
-	// ipv6本 5章で追加
+	// 6章で追加
 	// 宛先IPアドレスがルータの持っているIPアドレスでない場合はフォワーディングを行う
 	route := iproute.radixTreeSearchv6(byteToUint64(ipv6header.destAddr[0:8])) // ルーティングテーブルをルックアップ
 	if route == (ipRouteEntry{}) {

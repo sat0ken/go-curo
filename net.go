@@ -73,10 +73,11 @@ func getnetDeviceByName(name string) *netDevice {
 }
 
 func (netdev *netDevice) getIPv6Addr(linkLocal bool) (ipv6addr [16]byte) {
+
 	for i := 0; i < len(*netdev.ipdev.ipv6AddrList); i++ {
-		if !bytes.HasPrefix((*netdev.ipdev.ipv6AddrList)[i].v6address[:], []byte{0xfe, 0x80}) {
+		if linkLocal && bytes.HasPrefix((*netdev.ipdev.ipv6AddrList)[i].v6address[:], []byte{0xfe, 0x80}) {
 			ipv6addr = (*netdev.ipdev.ipv6AddrList)[i].v6address
-		} else {
+		} else if !linkLocal && !bytes.HasPrefix((*netdev.ipdev.ipv6AddrList)[i].v6address[:], []byte{0xfe, 0x80}) {
 			ipv6addr = (*netdev.ipdev.ipv6AddrList)[i].v6address
 		}
 	}

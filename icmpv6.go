@@ -437,8 +437,10 @@ func icmpv6Input(inputdev *netDevice, sourceAddr, destAddr [16]byte, icmpPacket 
 				options: setMacAddr(icmpPacket[26:32]),
 			},
 		}
-		payload := icmpmsg.ReplyNeighborAdvertisement(sourceAddr, destAddr, inputdev.macaddr)
-		ipv6PacketEncapsulateOutput(inputdev, sourceAddr, destAddr, payload, IP_PROTOCOL_NUM_ICMPv6)
+		linkLocalAddr := inputdev.getIPv6Addr(false)
+		payload := icmpmsg.ReplyNeighborAdvertisement(linkLocalAddr, sourceAddr, inputdev.macaddr)
+		ipv6PacketEncapsulateOutput(inputdev, sourceAddr,
+			linkLocalAddr, payload, IP_PROTOCOL_NUM_ICMPv6)
 	}
 }
 
