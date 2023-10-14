@@ -55,10 +55,9 @@ ip netns exec router1 ip addr add 2001:db8:0:3::1/64 dev router1-router3
 ip netns exec router1 ip link set router1-router3 up
 ip netns exec router1 ethtool -K router1-router3 rx off tx off
 ip netns exec router1 ip route add 2001:db8:0:2::1/64 via 2001:db8::2
-# routerを起動しない場合はroutingの設定
-if [ "$FLAG" == "" ]; then
-  ip netns exec router1 ip route add 2001:db8:0:4::1/64 via 2001:db8:0:3::2
-fi
+#if [ "$FLAG" == "" ]; then
+ip netns exec router1 ip route add 2001:db8:0:4::1/64 via 2001:db8:0:3::2
+#fi
 
 # router2のリンクの設定
 ip netns exec router2 ip addr add 2001:db8::2/64 dev router2-router1

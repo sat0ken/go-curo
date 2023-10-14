@@ -60,3 +60,4 @@ ip netns exec host2 ip route add default via 2001:db8:0:2::1
 
 # icmpv6を無視
 ip netns exec router1 sysctl net.ipv6.icmp.echo_ignore_all=1
+ip netns exec router1 ip6tables -A INPUT -p icmpv6 --icmpv6-type neighbour-solicitation -j DROP
