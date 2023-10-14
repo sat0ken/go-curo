@@ -20,14 +20,14 @@ func runChapter2(mode string) {
 		iptype:  network,
 		nexthop: 0xc0a80002,
 	}
-	// ipv6: 直接接続ではないhost2へのルーティングを登録する
+	// 192.168.2.0/24の経路の登録
+	iproute.radixTreeAdd(0xc0a80202&0xffffff00, 24, routeEntryTohost2)
+
+	// 直接接続ではないhost2へのルーティングを登録する
 	routeEntryIpv6Tohost2 := ipRouteEntry{
 		iptype:    network,
 		nexthopv6: ipv6ToByte("2001:db8::2"),
 	}
-
-	// 192.168.2.0/24の経路の登録
-	iproute.radixTreeAdd(0xc0a80202&0xffffff00, 24, routeEntryTohost2)
 	// 2001:db8:0:2::/64の経路の登録
 	iproute.radixTreeAddv6(0x20010db800000002, 64, routeEntryIpv6Tohost2)
 

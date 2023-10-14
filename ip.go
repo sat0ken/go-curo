@@ -55,7 +55,7 @@ type ipRouteEntry struct {
 	iptype    ipRouteType
 	netdev    *netDevice
 	nexthop   uint32
-	nexthopv6 [16]byte
+	nexthopv6 [16]byte // IPv6対応で追加
 }
 
 func (ipheader *ipHeader) ToPacket(calc bool) (ipHeaderByte []byte) {

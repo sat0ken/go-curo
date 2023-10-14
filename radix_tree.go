@@ -96,7 +96,7 @@ func (node *radixTreeNode) radixTreeAddv6(prefixIpAddr uint64, prefixLen uint32,
 func (node *radixTreeNode) radixTreeSearchv6(prefixIpAddr uint64) ipRouteEntry {
 	current := node
 	var result ipRouteEntry
-	// 検索するIPアドレスと比較して1ビットずつ辿っていく
+	// 検索するIPv6アドレスと比較して1ビットずつ辿っていく
 	for i := 1; i <= 65; i++ {
 		if current.data != (ipRouteEntry{}) {
 			result = current.data
