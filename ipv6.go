@@ -163,6 +163,16 @@ func ipv6Input(inputdev *netDevice, packet []byte) {
 	forwardPacket = append(forwardPacket, packet[40:]...)
 	// パケットを転送
 	if route.iptype == connected { // 直接接続ネットワークの経路なら
+		if route.netdev.mtu <= int(ipv6header.headerLen) {
+			fmt.Printf("Forwarding Packet %x is too big, mtu is %d, packet size is %d\n",
+				ipv6header.destAddr, inputdev.mtu, ipv6header.headerLen)
+			returnPacketToBig(inputdev, packetTooBig{
+				mtu:        uint32(route.netdev.mtu),
+				ipv6Header: ipv6header,
+				payload:    packet[40:],
+			})
+			return
+		}
 		ipv6PacketOutputToHost(route.netdev, ipv6header, forwardPacket)
 	} else { // 直接接続ネットワークの経路ではなかったら
 		ipv6PacketOutputToNetxhop(route.nexthopv6, ipv6header, forwardPacket)

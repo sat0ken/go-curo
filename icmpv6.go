@@ -7,6 +7,7 @@ import (
 
 const (
 	// https://tex2e.github.io/rfc-translater/html/rfc4443.html
+	ICMPv6_TYPE_PacketTooBig           uint8 = 2
 	ICMPv6_TYPE_ECHO_REQUEST           uint8 = 128
 	ICMPv6_TYPE_ECHO_REPLY             uint8 = 129
 	ICMPv6_TYPE_Router_Solicitation    uint8 = 133
@@ -106,6 +107,13 @@ type optPrefixInfomation struct {
 	prefLifetime       uint32
 	reserved           uint32
 	prefix             [16]byte
+}
+
+// https://tex2e.github.io/rfc-translater/html/rfc4443.html#3-2--Packet-Too-Big-Message
+type packetTooBig struct {
+	mtu        uint32
+	ipv6Header ipv6Header
+	payload    []byte
 }
 
 func (optnd *optNeighborDiscovery) ToPacket() []byte {
@@ -473,4 +481,54 @@ func sendNeighborSolicitation(netdev *netDevice, ipv6 ipv6Header) {
 	// ethernetでカプセル化して送信
 	destMacAddr := [6]uint8{0x33, 0x33, 0xff, ipv6.destAddr[13], ipv6.destAddr[14], ipv6.destAddr[15]}
 	ethernetOutput(netdev, destMacAddr, ipv6Packet, ETHER_TYPE_IPV6)
+}
+
+func (ptb *packetTooBig) ToPacket() []byte {
+	var b bytes.Buffer
+	b.Write(uint32ToByte(ptb.mtu))
+	b.Write(ptb.ipv6Header.ToPacket())
+
+	// あふれたサイズ
+	overlength := uint32(ptb.ipv6Header.headerLen) - ptb.mtu
+	fmt.Printf("packet sizeは %d, あふれたサイズ は %d\n", len(ptb.payload), overlength)
+	// あふれた分を切り詰める
+	ptb.payload = ptb.payload[:len(ptb.payload)-int(overlength*2)]
+	b.Write(ptb.payload)
+	return b.Bytes()
+}
+
+func (icmpmsg *icmpv6Message) ReplyPacketTooBig(ptb packetTooBig) (icmpv6Packet []byte) {
+	var b bytes.Buffer
+	// ICMPv6ヘッダ
+	b.Write([]byte{ICMPv6_TYPE_PacketTooBig})
+	b.Write([]byte{0x00})       // icmp code
+	b.Write([]byte{0x00, 0x00}) // checksum
+	b.Write(ptb.ToPacket())
+	// いったんパケットデータにする
+	icmpv6Packet = b.Bytes()
+	// IPv6ダミーヘッダをセット
+	dumyv6Header := ipv6DummyHeader{
+		srcAddr:  ptb.ipv6Header.destAddr,
+		destAddr: ptb.ipv6Header.srcAddr,
+		length:   uint32(len(icmpv6Packet)),
+		protocol: uint32(IP_PROTOCOL_NUM_ICMPv6),
+	}
+	// チェックサム計算用のデータを生成
+	calcPacket := dumyv6Header.ToPacket()
+	calcPacket = append(calcPacket, icmpv6Packet...)
+
+	// チェックサムを計算
+	checksum := calcChecksum(calcPacket)
+
+	// 計算したチェックサムをセット
+	icmpv6Packet[2] = checksum[0]
+	icmpv6Packet[3] = checksum[1]
+
+	return icmpv6Packet
+}
+
+func returnPacketToBig(inputdev *netDevice, ptb packetTooBig) {
+	var icmpptb icmpv6Message
+	payload := icmpptb.ReplyPacketTooBig(ptb)
+	ipv6PacketEncapsulateOutput(inputdev, ptb.ipv6Header.srcAddr, inputdev.getIPv6Addr(false), payload, IP_PROTOCOL_NUM_ICMPv6)
 }

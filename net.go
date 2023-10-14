@@ -15,6 +15,7 @@ type netDevice struct {
 	sockaddr   syscall.SockaddrLinklayer
 	etheHeader ethernetHeader
 	ipdev      ipDevice // 2章で追加
+	mtu        int      // IPv6 PathMTUで追加
 }
 
 func isIgnoreInterfaces(name string) bool {

@@ -80,6 +80,7 @@ func runChapter2(mode string) {
 				socket:   sock,
 				sockaddr: addr,
 				ipdev:    getIPdevice(netaddrs),
+				mtu:      netif.MTU,
 			}
 
 			if mode != "ipv6" {
