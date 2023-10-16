@@ -47,6 +47,7 @@ type natEntryList struct {
 type natDevice struct {
 	outsideIpAddr uint32
 	natEntry      *natEntryList
+	nat64Entry    *nat64EntryList // IPv6のNAT64対応で追加
 }
 
 func configureIPNat(inside string, outside uint32) {

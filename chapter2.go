@@ -120,6 +120,11 @@ func runChapter2(mode string) {
 		configureIPNat("router1-br0", getnetDeviceByName("router1-router2").ipdev.address)
 	}
 
+	// IPv6のNAT64対応で追加
+	if mode == "nat64" {
+		configureIPNat64("router1-host1", getnetDeviceByName("router1-host2").ipdev.address)
+	}
+
 	fmt.Printf("mode is %s start router...\n", mode)
 
 	for {

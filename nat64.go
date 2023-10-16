@@ -8,17 +8,36 @@ import (
 var nat64PrefixAddr = []byte{0x00, 0x64, 0xff, 0x9b}
 
 type nat64Entry struct {
-	srcipv4Addr  uint32
 	destipv4Addr uint32
 	srcipv6Addr  [16]byte
 	destipv6Addr [16]byte
-	ipv4Port     uint16
-	ipv6Port     uint16
 	protcolType  int
+	icmpIdentify uint16
 }
 
 type nat64EntryList struct {
-	icmp []*natEntry
+	icmp []*nat64Entry
+}
+
+// NATの内側のip_deviceが持つNATデバイス
+type nat64Device struct {
+	outsideIpAddr uint32
+	nat64Entry    *nat64EntryList
+}
+
+func configureIPNat64(inside string, outside uint32) {
+
+	for _, dev := range netDeviceList {
+		if inside == dev.name {
+			dev.ipdev.natdev = natDevice{
+				outsideIpAddr: outside,
+				nat64Entry: &nat64EntryList{
+					icmp: make([]*nat64Entry, NAT_ICMP_ID_SIZE, NAT_ICMP_ID_SIZE),
+				},
+			}
+			fmt.Printf("Set nat to %s, outside ip addr is %s\n", inside, printIPAddr(outside))
+		}
+	}
 }
 
 func ipv6HeaderToipv4Header(ipv6header *ipv6Header, srcAddr, destAddr uint32) ipHeader {
@@ -41,7 +60,7 @@ func ipv6HeaderToipv4Header(ipv6header *ipv6Header, srcAddr, destAddr uint32) ip
 	return ipv4Header
 }
 
-func nat6to4Exec(ipv6header *ipv6Header, packet []byte) {
+func nat6to4Exec(inputdev *netDevice, ipv6header *ipv6Header, packet []byte) {
 	var ipPacket []byte
 
 	// ルーティングテーブルをルックアップ
