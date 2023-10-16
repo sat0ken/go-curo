@@ -532,3 +532,28 @@ func returnPacketToBig(inputdev *netDevice, ptb packetTooBig) {
 	payload := icmpptb.ReplyPacketTooBig(ptb)
 	ipv6PacketEncapsulateOutput(inputdev, ptb.ipv6Header.srcAddr, inputdev.getIPv6Addr(false), payload, IP_PROTOCOL_NUM_ICMPv6)
 }
+
+func (icmpmsg *icmpv6Message) ToICMPv4Packet() (icmpPacket []byte) {
+	var b bytes.Buffer
+	// ICMPヘッダ
+	if icmpmsg.icmpType == ICMPv6_TYPE_ECHO_REQUEST {
+		b.Write([]byte{ICMP_TYPE_ECHO_REQUEST})
+		b.Write([]byte{0x00})       // icmp code
+		b.Write([]byte{0x00, 0x00}) // checksum
+		// ICMPエコーメッセージ
+		b.Write(uint16ToByte(icmpmsg.message.(icmpEcho).identify))
+		b.Write(uint16ToByte(icmpmsg.message.(icmpEcho).sequence))
+		// timestamp
+		b.Write([]byte{0x98, 0xd4, 0x2a, 0x65, 0x00, 0x00, 0x00, 0x00})
+		b.Write(icmpmsg.message.(icmpEcho).data[8:])
+	}
+	icmpPacket = b.Bytes()
+	checksum := calcChecksum(icmpPacket)
+	// 計算したチェックサムをセット
+	icmpPacket[2] = checksum[0]
+	icmpPacket[3] = checksum[1]
+
+	fmt.Printf("ICMPv6 to ICMP is %x\n", icmpPacket)
+
+	return icmpPacket
+}

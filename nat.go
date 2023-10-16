@@ -29,6 +29,7 @@ type natPacketHeader struct {
 	// TCPヘッダかUDPヘッダかICMP
 	packet []byte
 }
+
 type natEntry struct {
 	globalIpAddr uint32
 	localIpAddr  uint32
