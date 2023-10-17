@@ -557,3 +557,7 @@ func (icmpmsg *icmpv6Message) ToICMPv4Packet() (icmpPacket []byte) {
 
 	return icmpPacket
 }
+
+func (icmpmsg *icmpv6Message) getIcmpv4Identify() uint16 {
+	return icmpmsg.message.(icmpEcho).identify
+}

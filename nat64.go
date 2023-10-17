@@ -7,22 +7,16 @@ import (
 
 var nat64PrefixAddr = []byte{0x00, 0x64, 0xff, 0x9b}
 
+// ICMPだけ対応
 type nat64Entry struct {
 	destipv4Addr uint32
 	srcipv6Addr  [16]byte
 	destipv6Addr [16]byte
-	protcolType  int
 	icmpIdentify uint16
 }
 
 type nat64EntryList struct {
 	icmp []*nat64Entry
-}
-
-// NATの内側のip_deviceが持つNATデバイス
-type nat64Device struct {
-	outsideIpAddr uint32
-	nat64Entry    *nat64EntryList
 }
 
 func configureIPNat64(inside string, outside uint32) {
@@ -98,8 +92,13 @@ func nat6to4Exec(inputdev *netDevice, ipv6header *ipv6Header, packet []byte) {
 	destMacAddr, _ := searchArpTableEntry(destIpv4Addr)
 	fmt.Printf("NAT64 destMacAddr is %s\n", printMacAddr(destMacAddr))
 	if destMacAddr != [6]uint8{0, 0, 0, 0, 0, 0} {
-		// Todo: 送信前にNATエントリに追加
-
+		// 送信前にNATエントリに追加
+		route.netdev.ipdev.natdev.nat64Entry.createNat64IcmpEntry(&nat64Entry{
+			destipv4Addr: destIpv4Addr,
+			srcipv6Addr:  ipv6header.srcAddr,
+			destipv6Addr: ipv6header.destAddr,
+			icmpIdentify: icmpmsg.getIcmpv4Identify(),
+		})
 		// ARPテーブルに送信するIPアドレスのMACアドレスがあれば送信
 		fmt.Printf("NAT64 Ethernet output is %x\n", ipPacket)
 		ethernetOutput(route.netdev, destMacAddr, ipPacket, ETHER_TYPE_IP)
@@ -108,4 +107,25 @@ func nat6to4Exec(inputdev *netDevice, ipv6header *ipv6Header, packet []byte) {
 		fmt.Printf("NAT64 ARP Request to %s\n", printIPAddr(destIpv4Addr))
 		sendArpRequest(route.netdev, destIpv4Addr)
 	}
+}
+
+func (entry *nat64EntryList) createNat64IcmpEntry(nat64entry *nat64Entry) *nat64Entry {
+	// IPv4はTCPとUDPで実装したけどICMPだけ実装
+	for i, v := range entry.icmp {
+		if v == nil {
+			entry.icmp[i] = nat64entry
+		}
+	}
+	// 空いているエントリがなかったらnullを返す
+	return &nat64Entry{}
+}
+
+func (entry *nat64EntryList) getNat64IcmpEntry(ipaddr uint32, icmpIndentify uint16) *nat64Entry {
+	for _, v := range entry.icmp {
+		if v != nil && v.destipv4Addr == ipaddr && v.icmpIdentify == icmpIndentify {
+			return v
+		}
+	}
+	// テーブルに一致するエントリがなかったらnullを返す
+	return &nat64Entry{}
 }
