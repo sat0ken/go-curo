@@ -54,7 +54,24 @@ func ipv6HeaderToipv4Header(ipv6header *ipv6Header, srcAddr, destAddr uint32) ip
 	return ipv4Header
 }
 
-func nat6to4Exec(inputdev *netDevice, ipv6header *ipv6Header, packet []byte) {
+func ipv4HeaderToipv6Header(ipv4header *ipHeader, srcAddr, destAddr [16]byte) ipv6Header {
+	ipv6header := ipv6Header{
+		version:      6,
+		trafficClass: 0,
+		flowLabel:    0,
+		headerLen:    ipv4header.totalLen - 20,
+		nextHeader:   0,
+		hoplimit:     ipv4header.ttl - 1,
+		srcAddr:      srcAddr,
+		destAddr:     destAddr,
+	}
+	if ipv4header.protocol == IP_PROTOCOL_NUM_ICMP {
+		ipv6header.nextHeader = IP_PROTOCOL_NUM_ICMPv6
+	}
+	return ipv6header
+}
+
+func natICMP6to4(ipv6header *ipv6Header, packet []byte) {
 	var ipPacket []byte
 
 	// ルーティングテーブルをルックアップ
@@ -87,10 +104,7 @@ func nat6to4Exec(inputdev *netDevice, ipv6header *ipv6Header, packet []byte) {
 	// payloadを追加
 	ipPacket = append(ipPacket, icmpmsg.ToICMPv4Packet()...)
 
-	fmt.Printf("NAT64 Packet is %x\n", ipPacket)
-
 	destMacAddr, _ := searchArpTableEntry(destIpv4Addr)
-	fmt.Printf("NAT64 destMacAddr is %s\n", printMacAddr(destMacAddr))
 	if destMacAddr != [6]uint8{0, 0, 0, 0, 0, 0} {
 		// 送信前にNATエントリに追加
 		route.netdev.ipdev.natdev.nat64Entry.createNat64IcmpEntry(&nat64Entry{
@@ -100,11 +114,9 @@ func nat6to4Exec(inputdev *netDevice, ipv6header *ipv6Header, packet []byte) {
 			icmpIdentify: icmpmsg.getIcmpv4Identify(),
 		})
 		// ARPテーブルに送信するIPアドレスのMACアドレスがあれば送信
-		fmt.Printf("NAT64 Ethernet output is %x\n", ipPacket)
 		ethernetOutput(route.netdev, destMacAddr, ipPacket, ETHER_TYPE_IP)
 	} else {
 		// ARPリクエストを出す
-		fmt.Printf("NAT64 ARP Request to %s\n", printIPAddr(destIpv4Addr))
 		sendArpRequest(route.netdev, destIpv4Addr)
 	}
 }
@@ -114,6 +126,7 @@ func (entry *nat64EntryList) createNat64IcmpEntry(nat64entry *nat64Entry) *nat64
 	for i, v := range entry.icmp {
 		if v == nil {
 			entry.icmp[i] = nat64entry
+			return entry.icmp[i]
 		}
 	}
 	// 空いているエントリがなかったらnullを返す
@@ -128,4 +141,24 @@ func (entry *nat64EntryList) getNat64IcmpEntry(ipaddr uint32, icmpIndentify uint
 	}
 	// テーブルに一致するエントリがなかったらnullを返す
 	return &nat64Entry{}
+}
+
+func natICMP4to6(inputdev *netDevice, ipheader *ipHeader, icmpmsg icmpMessage) {
+	nat64entry := inputdev.ipdev.natdev.nat64Entry.getNat64IcmpEntry(ipheader.srcAddr, icmpmsg.icmpEcho.identify)
+	route := iproute.radixTreeSearchv6(byteToUint64(nat64entry.srcipv6Addr[0:8])) // ルーティングテーブルをルックアップ
+	fmt.Printf("NAT64 srcaddr is %x, destaddr is %x\n", nat64entry.srcipv6Addr, nat64entry.destipv6Addr)
+	if route == (ipRouteEntry{}) {
+		// 宛先までの経路がなかったらパケットを破棄
+		fmt.Printf("icmp.go 95 このIPへの経路がありません : %x\n", nat64entry.srcipv6Addr)
+		return
+	}
+	ipv6header := ipv4HeaderToipv6Header(ipheader, nat64entry.destipv6Addr, nat64entry.srcipv6Addr)
+	ipv6Packet := ipv6header.ToPacket()
+	ipv6Packet = append(ipv6Packet, icmpmsg.ToICMPv6ReplayPacket(nat64entry.destipv6Addr, nat64entry.srcipv6Addr)...)
+
+	if route.iptype == connected {
+		fmt.Printf("ICMP ECHO REPLY is received to %s, %x\n", inputdev.name, icmpmsg.icmpEcho.identify)
+		fmt.Printf("NAT64 Entry is %+v\n", nat64entry)
+		ipv6PacketOutputToHost(route.netdev, ipv6header, ipv6Packet)
+	}
 }
