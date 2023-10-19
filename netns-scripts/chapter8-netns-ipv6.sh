@@ -48,3 +48,5 @@ ip netns exec router1 sysctl -w net.ipv4.conf.all.forwarding=0
 ip netns exec router1 sysctl net.ipv4.icmp_echo_ignore_all=1
 ip netns exec router1 sysctl -w net.ipv6.conf.all.forwarding=0
 ip netns exec router1 sysctl -w net.ipv6.icmp.echo_ignore_all=1
+# No routeを返さないようにDROP
+ip netns exec router1 ip6tables -A OUTPUT -p icmpv6 --icmpv6-type destination-unreachable -j DROP
