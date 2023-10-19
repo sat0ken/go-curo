@@ -65,7 +65,7 @@ func (icmpmsg icmpMessage) ReplyPacket() (icmpPacket []byte) {
 	return icmpPacket
 }
 
-func icmpInput(inputdev *netDevice, sourceAddr, destAddr uint32, icmpPacket []byte) {
+func icmpInput(inputdev *netDevice, ipheader *ipHeader, icmpPacket []byte) {
 	// ICMPメッセージ長より短かったら
 	if len(icmpPacket) < 4 {
 		fmt.Println("Received ICMP Packet is too short")
@@ -89,9 +89,11 @@ func icmpInput(inputdev *netDevice, sourceAddr, destAddr uint32, icmpPacket []by
 	switch icmpmsg.icmpHeader.icmpType {
 	case ICMP_TYPE_ECHO_REPLY:
 		fmt.Println("ICMP ECHO REPLY is received")
+		// NAT64で戻りのICMPv6パケット生成して送信する
+		natICMP4to6(inputdev, ipheader, icmpmsg)
 	case ICMP_TYPE_ECHO_REQUEST:
 		fmt.Println("ICMP ECHO REQUEST is received, Create Reply Packet")
-		ipPacketEncapsulateOutput(inputdev, sourceAddr, destAddr, icmpmsg.ReplyPacket(), IP_PROTOCOL_NUM_ICMP)
+		ipPacketEncapsulateOutput(inputdev, ipheader.srcAddr, ipheader.destAddr, icmpmsg.ReplyPacket(), IP_PROTOCOL_NUM_ICMP)
 	}
 }
 
@@ -109,4 +111,39 @@ func (icmpmsg *icmpMessage) ParsePacket(icmpPacket []byte) icmpMessage {
 			data:      icmpPacket[16:],
 		},
 	}
+}
+
+func (icmpmsg *icmpMessage) ToICMPv6ReplayPacket(sourceAddr, destAddr [16]byte) (icmpv6Packet []byte) {
+	var b bytes.Buffer
+	// ICMPv6ヘッダ
+	b.Write([]byte{ICMPv6_TYPE_ECHO_REPLY})
+	b.Write([]byte{0x00})       // icmp code
+	b.Write([]byte{0x00, 0x00}) // checksum
+	// ICMPエコーメッセージ
+	b.Write(uint16ToByte(icmpmsg.icmpEcho.identify))
+	b.Write(uint16ToByte(icmpmsg.icmpEcho.sequence))
+	b.Write(icmpmsg.icmpEcho.timestamp[:])
+	b.Write(icmpmsg.icmpEcho.data)
+
+	// いったんパケットデータにする
+	icmpv6Packet = b.Bytes()
+	// IPv6ダミーヘッダをセット
+	dumyv6Header := ipv6DummyHeader{
+		srcAddr:  sourceAddr,
+		destAddr: destAddr,
+		length:   uint32(len(icmpv6Packet)),
+		protocol: uint32(IP_PROTOCOL_NUM_ICMPv6),
+	}
+	// チェックサム計算用のデータを生成
+	calcPacket := dumyv6Header.ToPacket()
+	calcPacket = append(calcPacket, icmpv6Packet...)
+
+	// チェックサムを計算
+	checksum := calcChecksum(calcPacket)
+
+	// 計算したチェックサムをセット
+	icmpv6Packet[2] = checksum[0]
+	icmpv6Packet[3] = checksum[1]
+
+	return icmpv6Packet
 }

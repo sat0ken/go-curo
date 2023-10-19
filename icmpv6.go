@@ -543,9 +543,7 @@ func (icmpmsg *icmpv6Message) ToICMPv4Packet() (icmpPacket []byte) {
 		// ICMPエコーメッセージ
 		b.Write(uint16ToByte(icmpmsg.message.(icmpEcho).identify))
 		b.Write(uint16ToByte(icmpmsg.message.(icmpEcho).sequence))
-		// timestamp
-		b.Write([]byte{0x98, 0xd4, 0x2a, 0x65, 0x00, 0x00, 0x00, 0x00})
-		b.Write(icmpmsg.message.(icmpEcho).data[8:])
+		b.Write(icmpmsg.message.(icmpEcho).data)
 	}
 	icmpPacket = b.Bytes()
 	checksum := calcChecksum(icmpPacket)
