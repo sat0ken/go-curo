@@ -146,8 +146,9 @@ func ipv6Input(inputdev *netDevice, packet []byte) {
 
 	// 8章で追加
 	if bytes.HasPrefix(ipv6header.destAddr[:], nat64PrefixAddr) {
-		fmt.Println("NAT64します")
-		nat6to4Exec(inputdev, &ipv6header, packet[40:])
+		// NAT64を実行
+		natICMP6to4(&ipv6header, packet[40:])
+		return
 	}
 
 	// 6章で追加

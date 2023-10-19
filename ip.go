@@ -307,7 +307,7 @@ func ipInputToOurs(inputdev *netDevice, ipheader *ipHeader, packet []byte) {
 	case IP_PROTOCOL_NUM_ICMP:
 		fmt.Println("ICMP received!")
 		// 3章で追加
-		icmpInput(inputdev, ipheader.srcAddr, ipheader.destAddr, packet)
+		icmpInput(inputdev, ipheader, packet)
 	case IP_PROTOCOL_NUM_UDP:
 		fmt.Printf("udp received : %x\n", packet)
 		//return
