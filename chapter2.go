@@ -93,7 +93,7 @@ func runChapter2(mode string) {
 				iproute.radixTreeAdd(netdev.ipdev.address&netdev.ipdev.netmask, prefixLen, routeEntry)
 				fmt.Printf("Set directly connected route %s/%d via %s\n",
 					printIPAddr(netdev.ipdev.address&netdev.ipdev.netmask), prefixLen, netdev.name)
-			} else {
+			} else if mode == "ipv6" || mode == "nat64" {
 				for i := 0; i < len(*netdev.ipdev.ipv6AddrList); i++ {
 					// グローバルユニキャストアドレスであれば
 					prefixIPv6 := byteToUint64((*netdev.ipdev.ipv6AddrList)[i].v6address[0:8])
@@ -122,7 +122,7 @@ func runChapter2(mode string) {
 
 	// IPv6のNAT64対応で追加
 	if mode == "nat64" {
-		configureIPNat64("router1-host1", getnetDeviceByName("router1-host2").ipdev.address)
+		configureIPNat64("router1-host2", getnetDeviceByName("router1-host2").ipdev.address)
 	}
 
 	fmt.Printf("mode is %s start router...\n", mode)
